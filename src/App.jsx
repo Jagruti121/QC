@@ -1,38 +1,44 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext'; // Import Provider
+import { AuthProvider } from './context/AuthContext';
 
 // Pages
+import Home from './pages/Home';
+import About from './pages/About';
+import Contact from './pages/Contact';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import PrivateRoute from './components/PrivateRoute'; 
+import PrivateRoute from './components/PrivateRoute';
 
 function App() {
   return (
     <Router>
-      {/* ⚠️ AuthProvider MUST wrap all Routes for useAuth() to work */}
       <AuthProvider>
         <Routes>
-          <Route path="/" element={<Login />} />
+          {/* Public Routes */}
+          <Route path="/" element={<Home />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/login" element={<Login />} />
 
           {/* Protected Admin Route */}
-          <Route 
-            path="/admin/dashboard" 
+          <Route
+            path="/admin/dashboard"
             element={
               <PrivateRoute requiredRole="Admin">
                 <Dashboard />
               </PrivateRoute>
-            } 
+            }
           />
 
           {/* Protected Faculty Route */}
-          <Route 
-            path="/faculty/dashboard" 
+          <Route
+            path="/faculty/dashboard"
             element={
               <PrivateRoute requiredRole="Faculty">
                 <Dashboard />
               </PrivateRoute>
-            } 
+            }
           />
 
           {/* Fallback */}
@@ -42,6 +48,5 @@ function App() {
     </Router>
   );
 }
-
 
 export default App;
