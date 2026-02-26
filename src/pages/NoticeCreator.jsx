@@ -998,7 +998,7 @@ import {
 } from 'lucide-react';
 import { saveNoticeWithRef } from '../utils/db'; 
 
-const API_KEY = "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"; 
+const API_KEY = "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"; 
 const HEADER_IMAGE_PATH = "/header_logo.png"; 
 
 const NoticeCreator = ({ user }) => {
