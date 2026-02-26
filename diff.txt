@@ -1,0 +1,2171 @@
+﻿diff --git a/src/pages/AttendanceControl.jsx b/src/pages/AttendanceControl.jsx
+index 6cf1f09..894d640 100644
+--- a/src/pages/AttendanceControl.jsx
++++ b/src/pages/AttendanceControl.jsx
+@@ -1,6 +1,6 @@
+ import React, { useState, useEffect } from 'react';
+-import { 
+-  Calendar, Clock, MapPin, Users, ChevronDown, ChevronUp, FileSpreadsheet, X, Eye, ClipboardCheck, Download 
++import {
++  Calendar, Clock, MapPin, Users, ChevronDown, ChevronUp, FileSpreadsheet, X, Eye, ClipboardCheck, Download, Check, Minus
+ } from 'lucide-react';
+ import { subscribeToAllAllocations } from '../utils/db';
+ import * as XLSX from 'xlsx';
+@@ -15,7 +15,7 @@ const AttendanceControl = () => {
+   useEffect(() => {
+     const unsubscribe = subscribeToAllAllocations((data) => {
+       const sortedData = [...data].sort((a, b) => new Date(b.date) - new Date(a.date));
+-      
++
+       const groups = sortedData.reduce((acc, duty) => {
+         if (!acc[duty.date]) acc[duty.date] = [];
+         acc[duty.date].push(duty);
+@@ -25,7 +25,7 @@ const AttendanceControl = () => {
+       setAllDuties(sortedData);
+       setGroupedDuties(groups);
+       setLoading(false);
+-      
++
+       const dates = Object.keys(groups);
+       if (dates.length > 0 && Object.keys(expandedDates).length === 0) {
+         setExpandedDates({ [dates[0]]: true });
+@@ -54,23 +54,27 @@ const AttendanceControl = () => {
+ 
+   const downloadExcel = (duty) => {
+     const fileName = `Attendance_Room_${duty.room}_${duty.date}.xlsx`;
+-    
++
+     const worksheetData = duty.students?.map((stu) => {
+       const roll = stu['ROLL NO'] || stu.roll;
+       return {
+         'Roll No': roll,
+         'Student Name': stu['NAME'] || stu.name,
+-        'Status': duty.attendanceData ? (duty.attendanceData[roll] || 'Pending') : 'Pending'
++        'Status': duty.attendanceData ? (duty.attendanceData[roll] || 'Pending') : 'Pending',
++        'H/PC': duty.hpcData && duty.hpcData[roll] ? 'Yes' : '',
++        'CC': duty.ccData && duty.ccData[roll] ? 'Yes' : ''
+       };
+     }) || [];
+ 
+     const pCount = duty.attendanceSummary?.present || 0;
+     const aCount = duty.attendanceSummary?.absent || 0;
+-    
++
+     worksheetData.push({
+       'Roll No': 'Total',
+       'Student Name': '',
+-      'Status': `${pCount} Present / ${aCount} Absent`
++      'Status': `${pCount} Present / ${aCount} Absent`,
++      'H/PC': '',
++      'CC': ''
+     });
+ 
+     const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+@@ -101,10 +105,10 @@ const AttendanceControl = () => {
+ 
+       {Object.entries(groupedDuties).map(([date, rooms]) => (
+         <div key={date} style={{ marginBottom: '20px' }}>
+-          <div 
++          <div
+             onClick={() => toggleDate(date)}
+-            style={{ 
+-              backgroundColor: 'white', padding: '15px 25px', borderRadius: '15px', 
++            style={{
++              backgroundColor: 'white', padding: '15px 25px', borderRadius: '15px',
+               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+               cursor: 'pointer', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+             }}
+@@ -119,17 +123,17 @@ const AttendanceControl = () => {
+           </div>
+ 
+           {expandedDates[date] && (
+-            <div style={{ 
+-              display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', 
+-              gap: '20px', marginTop: '15px', padding: '0 10px' 
++            <div style={{
++              display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
++              gap: '20px', marginTop: '15px', padding: '0 10px'
+             }}>
+               {rooms.map((room) => (
+-                <RoomAttendanceCard 
+-                  key={room.id} 
+-                  data={room} 
++                <RoomAttendanceCard
++                  key={room.id}
++                  data={room}
+                   year={getYearFromExcel(room)}
+                   division={getDivisionFromExcel(room)}
+-                  onViewAttendance={() => setSelectedDutyId(room.id)} 
++                  onViewAttendance={() => setSelectedDutyId(room.id)}
+                   onDownload={() => downloadExcel(room)}
+                 />
+               ))}
+@@ -139,11 +143,11 @@ const AttendanceControl = () => {
+       ))}
+ 
+       {activeDutyForModal && (
+-        <AttendanceSheetModal 
+-          duty={activeDutyForModal} 
++        <AttendanceSheetModal
++          duty={activeDutyForModal}
+           year={getYearFromExcel(activeDutyForModal)}
+           division={getDivisionFromExcel(activeDutyForModal)}
+-          onClose={() => setSelectedDutyId(null)} 
++          onClose={() => setSelectedDutyId(null)}
+         />
+       )}
+     </div>
+@@ -163,13 +167,13 @@ const RoomAttendanceCard = ({ data, year, division, onViewAttendance, onDownload
+         </div>
+ 
+         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
+-           <p style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
+-             {year} | {data.department} | {division}
+-           </p>
+-           <div style={{ textAlign: 'right' }}>
+-              <p style={{ fontSize: '8px', color: '#94a3b8', fontWeight: '800' }}>ROLL RANGE</p>
+-              <p style={{ fontSize: '11px', fontWeight: '700', color: '#1e293b' }}>{data.rollRange || 'N/A'}</p>
+-           </div>
++          <p style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
++            {year} | {data.department} | {division}
++          </p>
++          <div style={{ textAlign: 'right' }}>
++            <p style={{ fontSize: '8px', color: '#94a3b8', fontWeight: '800' }}>ROLL RANGE</p>
++            <p style={{ fontSize: '11px', fontWeight: '700', color: '#1e293b' }}>{data.rollRange || 'N/A'}</p>
++          </div>
+         </div>
+ 
+         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', margin: '10px 0' }}>
+@@ -177,7 +181,7 @@ const RoomAttendanceCard = ({ data, year, division, onViewAttendance, onDownload
+           <span style={{ fontSize: '12px', color: '#1e293b' }}>{data.startTime} - {data.endTime}</span>
+         </div>
+ 
+-        <div style={{ 
++        <div style={{
+           padding: '12px', borderRadius: '12px', textAlign: 'center',
+           backgroundColor: data.attendanceSummary ? '#f0fdf4' : '#fff7ed',
+           border: `1px solid ${data.attendanceSummary ? '#bcf0da' : '#ffedd5'}`,
+@@ -193,12 +197,12 @@ const RoomAttendanceCard = ({ data, year, division, onViewAttendance, onDownload
+         </div>
+ 
+         <div style={{ display: 'flex', gap: '10px' }}>
+-            <button onClick={onViewAttendance} style={{ flex: 1, padding: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', color: '#4f46e5', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px' }}>
+-              <Eye size={16} /> View
+-            </button>
+-            <button onClick={onDownload} style={{ flex: 1, padding: '10px', background: '#4f46e5', border: 'none', borderRadius: '10px', color: 'white', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px' }}>
+-              <Download size={16} /> Download
+-            </button>
++          <button onClick={onViewAttendance} style={{ flex: 1, padding: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', color: '#4f46e5', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px' }}>
++            <Eye size={16} /> View
++          </button>
++          <button onClick={onDownload} style={{ flex: 1, padding: '10px', background: '#4f46e5', border: 'none', borderRadius: '10px', color: 'white', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px' }}>
++            <Download size={16} /> Download
++          </button>
+         </div>
+       </div>
+     </div>
+@@ -212,7 +216,7 @@ const AttendanceSheetModal = ({ duty, year, division, onClose }) => (
+         <div>
+           <h3 style={{ fontSize: '20px', fontWeight: 'bold' }}>Attendance Sheet: Room {duty.room}</h3>
+           <p style={{ fontSize: '14px', color: '#64748b' }}>
+-            {year} | {duty.department} | {division} <br/>
++            {year} | {duty.department} | {division} <br />
+             Faculty: {duty.facultyName} | {duty.date}
+           </p>
+         </div>
+@@ -225,21 +229,35 @@ const AttendanceSheetModal = ({ duty, year, division, onClose }) => (
+             <th style={{ padding: '12px' }}>Roll No</th>
+             <th style={{ padding: '12px' }}>Student Name</th>
+             <th style={{ padding: '12px', textAlign: 'center' }}>Status</th>
++            <th style={{ padding: '12px', textAlign: 'center', color: '#0ea5e9' }}>H/PC</th>
++            <th style={{ padding: '12px', textAlign: 'center', color: '#f59e0b' }}>CC</th>
+           </tr>
+         </thead>
+         <tbody>
+           {duty.students?.map((stu, index) => {
+             const roll = stu['ROLL NO'] || stu.roll;
+-            const status = duty.attendanceData ? duty.attendanceData[roll] : 'Pending'; 
++            const status = duty.attendanceData ? duty.attendanceData[roll] : 'Pending';
++            const isHpc = duty.hpcData && duty.hpcData[roll];
++            const isCc = duty.ccData && duty.ccData[roll];
++
+             return (
+               <tr key={index} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                 <td style={{ padding: '12px', fontWeight: 'bold' }}>{roll}</td>
+-                <td style={{ padding: '12px' }}>{stu['NAME'] || stu.name}</td>
++                <td style={{ padding: '12px' }}>
++                  {stu['NAME'] || stu.name}
++                  {stu.isBuffer && <span style={{ marginLeft: '8px', background: '#f59e0b', color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>BUFFER</span>}
++                </td>
+                 <td style={{ padding: '12px', textAlign: 'center' }}>
+                   <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', background: status === 'Present' ? '#dcfce7' : status === 'Absent' ? '#fee2e2' : '#f1f5f9', color: status === 'Present' ? '#166534' : status === 'Absent' ? '#991b1b' : '#64748b' }}>
+                     {status}
+                   </span>
+                 </td>
++                <td style={{ padding: '12px', textAlign: 'center' }}>
++                  {isHpc ? <Check size={18} color="#0ea5e9" style={{ margin: '0 auto' }} /> : <Minus size={18} color="#cbd5e1" style={{ margin: '0 auto' }} />}
++                </td>
++                <td style={{ padding: '12px', textAlign: 'center' }}>
++                  {isCc ? <Check size={18} color="#f59e0b" style={{ margin: '0 auto' }} /> : <Minus size={18} color="#cbd5e1" style={{ margin: '0 auto' }} />}
++                </td>
+               </tr>
+             );
+           })}
+diff --git a/src/pages/Contact.jsx b/src/pages/Contact.jsx
+index 2e88ea9..1087dee 100644
+--- a/src/pages/Contact.jsx
++++ b/src/pages/Contact.jsx
+@@ -35,7 +35,7 @@ const Contact = () => {
+                             <h3 style={{ margin: '5px 0', fontSize: '22px', color: '#1e293b' }}>Jagruti Rajan Morvekar</h3>
+                         </div>
+                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#4f46e5', fontWeight: 'bold', fontSize: '18px' }}>
+-                            <Phone size={20} /> [Add Number Here]
++                            <Phone size={20} /> [+91 93216 32938]
+                         </div>
+                     </div>
+ 
+@@ -46,7 +46,7 @@ const Contact = () => {
+                             <h3 style={{ margin: '5px 0', fontSize: '22px', color: '#1e293b' }}>Om Chandrashekhar Murkar</h3>
+                         </div>
+                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#4f46e5', fontWeight: 'bold', fontSize: '18px' }}>
+-                            <Phone size={20} /> 913623409
++                            <Phone size={20} /> [+91 91362 34409]
+                         </div>
+                     </div>
+ 
+@@ -57,7 +57,7 @@ const Contact = () => {
+                             <h3 style={{ margin: '5px 0', fontSize: '22px', color: '#312e81' }}>Asst. Prof. Rajesh Rajgor</h3>
+                         </div>
+                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#4338ca', fontWeight: 'bold', fontSize: '18px' }}>
+-                            <Phone size={20} /> [Add Number Here]
++                            <Phone size={20} /> [+91 99677 46143]
+                         </div>
+                     </div>
+ 
+diff --git a/src/pages/Dashboard.jsx b/src/pages/Dashboard.jsx
+index 31e5fa7..d52672c 100644
+--- a/src/pages/Dashboard.jsx
++++ b/src/pages/Dashboard.jsx
+@@ -17,7 +17,7 @@
+ // //   // Pull 'loading' from AuthContext to handle manual reloads
+ // //   const { user, logout, loading } = useAuth(); 
+ // //   const navigate = useNavigate();
+-  
++
+ // //   const [currentUser, setCurrentUser] = useState(null);
+ // //   const [activePage, setActivePage] = useState('');
+ 
+@@ -150,7 +150,7 @@
+ //   // Pull 'loading' from AuthContext to handle manual reloads
+ //   const { user, logout, loading } = useAuth(); 
+ //   const navigate = useNavigate();
+-  
++
+ //   const [currentUser, setCurrentUser] = useState(null);
+ //   const [activePage, setActivePage] = useState('');
+ 
+@@ -271,9 +271,9 @@
+ 
+ import React, { useState, useEffect } from 'react';
+ import { useNavigate } from 'react-router-dom';
+-import { useAuth } from '../context/AuthContext'; 
+-import { 
+-  Users, LayoutDashboard, FileText, CheckCircle, Clock, LogOut, ClipboardList, 
++import { useAuth } from '../context/AuthContext';
++import {
++  Users, LayoutDashboard, FileText, CheckCircle, Clock, LogOut, ClipboardList,
+   ClipboardCheck, Settings as SettingsIcon // Added Settings icon
+ } from 'lucide-react';
+ 
+@@ -283,14 +283,14 @@ import ExamAllocation from './ExamAllocation';
+ import NoticeCreator from './NoticeCreator';
+ import Approvals from './Approvals';
+ import NoticeHistory from './NoticeHistory';
+-import FacultyDuties from './FacultyDuties'; 
+-import AttendanceControl from './AttendanceControl'; 
++import FacultyDuties from './FacultyDuties';
++import AttendanceControl from './AttendanceControl';
+ import Settings from './Settings'; // Import the new Settings component
+ 
+ const Dashboard = () => {
+-  const { user, logout, loading } = useAuth(); 
++  const { user, logout, loading } = useAuth();
+   const navigate = useNavigate();
+-  
++
+   const [currentUser, setCurrentUser] = useState(null);
+   const [activePage, setActivePage] = useState('');
+ 
+@@ -303,7 +303,10 @@ const Dashboard = () => {
+ 
+     if (user) {
+       setCurrentUser({ name: user.displayName || 'Admin', role: 'Admin', email: user.email });
+-      if (!activePage) setActivePage('manage-faculty'); 
++      if (!activePage) setActivePage('manage-faculty');
++    } else if (storedRole === 'Admin' && storedEmail) {
++      setCurrentUser({ name: storedName || 'Admin', role: 'Admin', email: storedEmail });
++      if (!activePage) setActivePage('manage-faculty');
+     } else if (storedRole === 'Faculty' && storedEmail) {
+       setCurrentUser({ name: storedName, role: 'Faculty', email: storedEmail });
+       if (!activePage) setActivePage('duties');
+@@ -330,7 +333,7 @@ const Dashboard = () => {
+         <div className="brand-section">
+           <h1 className="brand-name">Quick Campus</h1>
+           <p className="text-xs text-gray-500 mt-2 font-medium">
+-            {currentUser.name} <br/>
++            {currentUser.name} <br />
+             <span className="text-indigo-600">({currentUser.role})</span>
+           </p>
+         </div>
+@@ -372,7 +375,7 @@ const Dashboard = () => {
+               <button className={`nav-item ${activePage === 'history' ? 'active' : ''}`} onClick={() => setActivePage('history')}>
+                 <Clock size={20} /> Notice History
+               </button>
+-              
++
+               {/* NEW SETTINGS TAB - Placed below Notice History */}
+               <button className={`nav-item ${activePage === 'settings' ? 'active' : ''}`} onClick={() => setActivePage('settings')}>
+                 <SettingsIcon size={20} /> Settings
+@@ -395,7 +398,7 @@ const Dashboard = () => {
+         {activePage === 'notices' && <NoticeCreator user={currentUser} />}
+         {activePage === 'approvals' && <Approvals />}
+         {activePage === 'history' && <NoticeHistory user={currentUser} />}
+-        
++
+         {/* Render Settings Component */}
+         {activePage === 'settings' && <Settings />}
+       </div>
+diff --git a/src/pages/ExamAllocation.jsx b/src/pages/ExamAllocation.jsx
+index b8e8a1c..06a269b 100644
+--- a/src/pages/ExamAllocation.jsx
++++ b/src/pages/ExamAllocation.jsx
+@@ -3,38 +3,40 @@ import * as XLSX from 'xlsx';
+ import JSZip from 'jszip';
+ import { saveAs } from 'file-saver';
+ import { Document, Packer, Paragraph, TextRun, AlignmentType, Table, TableRow, TableCell, WidthType } from 'docx';
+-import { 
+-  Upload, Calendar, RefreshCw, Download, UserCheck, FileSpreadsheet, 
+-  Loader, Save, ArrowLeft, Clock, LayoutTemplate, Play, Trash2, AlertTriangle, X, ShieldAlert, ChevronLeft, ChevronRight, CheckSquare, Square
++import {
++  Upload, Calendar, RefreshCw, Download, UserCheck, FileSpreadsheet,
++  Loader, Save, ArrowLeft, Clock, LayoutTemplate, Play, Trash2, AlertTriangle, X, ShieldAlert, ChevronLeft, ChevronRight, CheckSquare, Square, Search
+ } from 'lucide-react';
+-import { 
+-  saveAllocationTemplate, 
+-  subscribeToTemplates, 
+-  deleteTemplate, 
+-  saveAllocationHistory, 
+-  subscribeToHistory, 
++import {
++  saveAllocationTemplate,
++  subscribeToTemplates,
++  deleteTemplate,
++  saveAllocationHistory,
++  subscribeToHistory,
+   getAllExamAllocations,
+   deleteAllocationBatch,
+   clearAllAllocations,
+-  getAllocationTemplates, 
+-  getAllocationHistory
+-} from '../utils/db'; 
+-import { collection, getDocs, writeBatch, doc, query, where } from 'firebase/firestore'; 
+-import { db } from '../firebase'; 
++  getAllocationTemplates,
++  getAllocationHistory,
++  addBufferStudentToAllocation
++} from '../utils/db';
++import { collection, getDocs, writeBatch, doc, query, where } from 'firebase/firestore';
++import { db } from '../firebase';
+ 
+ const ExamAllocation = () => {
+-  const [view, setView] = useState('dashboard'); 
++  const [view, setView] = useState('dashboard');
+   const [templates, setTemplates] = useState([]);
+   const [history, setHistory] = useState([]);
+-  const [selectedBatches, setSelectedBatches] = useState([]); 
++  const [selectedBatches, setSelectedBatches] = useState([]);
+   const [step, setStep] = useState(1);
+   const [loading, setLoading] = useState(false);
+   const [statusMsg, setStatusMsg] = useState("");
+-  
++  const [searchQuery, setSearchQuery] = useState("");
++
+   const [students, setStudents] = useState([]);
+   const [rooms, setRooms] = useState([]);
+   const [faculty, setFaculty] = useState([]);
+-  
++
+   const [selectedDates, setSelectedDates] = useState([]);
+   const [showCalendar, setShowCalendar] = useState(false);
+   const [startTime, setStartTime] = useState({ hour: '09', minute: '00', period: 'AM' });
+@@ -47,6 +49,11 @@ const ExamAllocation = () => {
+   const [allocations, setAllocations] = useState([]);
+   const [reserveFaculty, setReserveFaculty] = useState([]);
+ 
++  // Buffer Student State
++  const [showBufferModal, setShowBufferModal] = useState(false);
++  const [bufferRoomIndex, setBufferRoomIndex] = useState(null);
++  const [bufferStudent, setBufferStudent] = useState({ rollNo: '', name: '', department: '', year: '', division: '' });
++
+   useEffect(() => {
+     if (typeof subscribeToTemplates === 'function') {
+       const unsubTemplates = subscribeToTemplates((data) => setTemplates(data));
+@@ -60,7 +67,7 @@ const ExamAllocation = () => {
+ 
+   const toggleBatchSelection = (e, batchId) => {
+     e.stopPropagation();
+-    setSelectedBatches(prev => 
++    setSelectedBatches(prev =>
+       prev.includes(batchId) ? prev.filter(id => id !== batchId) : [...prev, batchId]
+     );
+   };
+@@ -80,31 +87,58 @@ const ExamAllocation = () => {
+       const sortedBatchData = filteredData.sort((a, b) => parseInt(a.room) - parseInt(b.room));
+ 
+       const facWB = XLSX.utils.book_new();
++      const bufferFacWB = XLSX.utils.book_new();
+       const processedRoomsFac = new Set();
++      let hasBufferStudents = false;
++
+       sortedBatchData.forEach(roomAlloc => {
+         if (!processedRoomsFac.has(roomAlloc.room)) {
+-          const roomRows = roomAlloc.students.map(std => ({
+-            'Roll': std['ROLL NO'] || std['ROLL'] || '',
+-            'Name': std['NAME'] || '',
+-            'Dept': std['DEPARTMENT'] || std['DEPT'] || '',
+-            'Year': std['YEAR'] || '',
+-            'Division': std['DIVISION'] || std['DIV'] || '',
+-            'Sign': ''
+-          }));
+-          const roomWS = XLSX.utils.json_to_sheet(roomRows);
+-          XLSX.utils.book_append_sheet(facWB, roomWS, `Room ${roomAlloc.room}`);
++          const regulars = (roomAlloc.students || []).filter(s => !s.isBuffer);
++          const buffers = (roomAlloc.students || []).filter(s => s.isBuffer);
++
++          if (regulars.length > 0) {
++            const roomRows = regulars.map(std => ({
++              'Roll': std['ROLL NO'] || std['ROLL'] || '',
++              'Name': std['NAME'] || '',
++              'Dept': std['DEPARTMENT'] || std['DEPT'] || '',
++              'Year': std['YEAR'] || '',
++              'Division': std['DIVISION'] || std['DIV'] || '',
++              'Sign': ''
++            }));
++            const roomWS = XLSX.utils.json_to_sheet(roomRows);
++            XLSX.utils.book_append_sheet(facWB, roomWS, `Room ${roomAlloc.room}`);
++          }
++
++          if (buffers.length > 0) {
++            hasBufferStudents = true;
++            const bRoomRows = buffers.map(std => ({
++              'Roll': std['ROLL NO'] || std['ROLL'] || '',
++              'Name': std['NAME'] || '',
++              'Dept': std['DEPARTMENT'] || std['DEPT'] || '',
++              'Year': std['YEAR'] || '',
++              'Division': std['DIVISION'] || std['DIV'] || '',
++              'Sign': ''
++            }));
++            const bRoomWS = XLSX.utils.json_to_sheet(bRoomRows);
++            XLSX.utils.book_append_sheet(bufferFacWB, bRoomWS, `Room ${roomAlloc.room}`);
++          }
++
+           processedRoomsFac.add(roomAlloc.room);
+         }
+       });
+       zip.file("Faculty_Sheets.xlsx", XLSX.write(facWB, { bookType: 'xlsx', type: 'array' }));
++      if (hasBufferStudents) zip.file("Buffer_Faculty_Sheets.xlsx", XLSX.write(bufferFacWB, { bookType: 'xlsx', type: 'array' }));
+ 
+       const uniqueMasterRows = [];
++      const uniqueBufferMasterRows = [];
+       const masterCheck = new Set();
+       sortedBatchData.forEach(alloc => {
+         const uniqueKey = `${alloc.batchId}-${alloc.room}`;
+         if (!masterCheck.has(uniqueKey)) {
++          const regulars = (alloc.students || []).filter(s => !s.isBuffer);
++          const buffers = (alloc.students || []).filter(s => s.isBuffer);
+           const batchHistory = history.find(h => h.batchId === alloc.batchId) || { date: "" };
+-          
++
+           const formattedDates = batchHistory.date.split(',').map(d => {
+             const dateObj = new Date(d.trim());
+             const day = String(dateObj.getDate()).padStart(2, '0');
+@@ -113,17 +147,32 @@ const ExamAllocation = () => {
+             return `${day}-${month}-${year}`;
+           }).join(", ");
+ 
+-          uniqueMasterRows.push({
+-            'Room no': alloc.room,
+-            'Department': alloc.department,
+-            'Year': alloc.students[0]?.['YEAR'] || '',
+-            'Division': alloc.students[0]?.['DIVISION'] || '',
+-            'Roll no From': alloc.rollRange.split('-')[0].trim(),
+-            'Roll no To': alloc.rollRange.split('-')[1].trim(),
+-            'Count': alloc.studentCount,
+-            'Faculty': alloc.facultyName,
+-            'Date': formattedDates 
+-          });
++          if (regulars.length > 0) {
++            uniqueMasterRows.push({
++              'Room no': alloc.room,
++              'Department': alloc.department,
++              'Year': regulars[0]?.['YEAR'] || '',
++              'Division': regulars[0]?.['DIVISION'] || '',
++              'Roll no From': regulars[0]?.['ROLL NO'] || '',
++              'Roll no To': regulars[regulars.length - 1]?.['ROLL NO'] || '',
++              'Count': regulars.length,
++              'Faculty': alloc.facultyName,
++              'Date': formattedDates
++            });
++          }
++
++          if (buffers.length > 0) {
++            uniqueBufferMasterRows.push({
++              'Room no': alloc.room,
++              'Department': alloc.department,
++              'Year': buffers[0]?.['YEAR'] || '',
++              'Division': buffers[0]?.['DIVISION'] || '',
++              'Count': buffers.length,
++              'Faculty': alloc.facultyName,
++              'Date': formattedDates
++            });
++          }
++
+           masterCheck.add(uniqueKey);
+         }
+       });
+@@ -132,46 +181,99 @@ const ExamAllocation = () => {
+       XLSX.utils.book_append_sheet(masWB, masWS, "Summary");
+       zip.file("Master_Summary.xlsx", XLSX.write(masWB, { bookType: 'xlsx', type: 'array' }));
+ 
++      if (uniqueBufferMasterRows.length > 0) {
++        const bMasWS = XLSX.utils.json_to_sheet(uniqueBufferMasterRows);
++        const bMasWB = XLSX.utils.book_new();
++        XLSX.utils.book_append_sheet(bMasWB, bMasWS, "Buffer Summary");
++        zip.file("Buffer_Master_Summary.xlsx", XLSX.write(bMasWB, { bookType: 'xlsx', type: 'array' }));
++      }
++
+       const stickerTableRows = [];
++      const bufferStickerTableRows = [];
+       const stickerCheck = new Set();
+       sortedBatchData.forEach((roomAlloc) => {
+         if (!stickerCheck.has(roomAlloc.room)) {
+-          stickerTableRows.push(new TableRow({
+-            children: [new TableCell({
+-              columnSpan: 4,
+-              children: [new Paragraph({
+-                alignment: AlignmentType.CENTER,
+-                children: [new TextRun({ text: `ROOM ${roomAlloc.room}`, bold: true, size: 24 })]
+-              })],
+-            })]
+-          }));
+-          for (let i = 0; i < roomAlloc.students.length; i += 4) {
+-            const rowCells = [];
+-            for (let j = 0; j < 4; j++) {
+-              const std = roomAlloc.students[i + j];
+-              rowCells.push(new TableCell({
+-                width: { size: 25, type: WidthType.PERCENTAGE },
+-                children: std ? [
+-                  new Paragraph({
+-                    alignment: AlignmentType.CENTER,
+-                    spacing: { before: 200, after: 200 },
+-                    children: [
+-                      new TextRun({ text: `${std['ROLL NO'] || std['ROLL'] || ''}`, size: 24, bold: true }),
+-                      new TextRun({ break: 1, text: `${std['DEPARTMENT'] || ''}, ${std['YEAR'] || ''}, ${std['DIVISION'] || ''}`, size: 20 }),
+-                    ],
+-                  })
+-                ] : [],
+-              }));
++          const regulars = (roomAlloc.students || []).filter(s => !s.isBuffer);
++          const buffers = (roomAlloc.students || []).filter(s => s.isBuffer);
++
++          if (regulars.length > 0) {
++            stickerTableRows.push(new TableRow({
++              children: [new TableCell({
++                columnSpan: 4,
++                children: [new Paragraph({
++                  alignment: AlignmentType.CENTER,
++                  children: [new TextRun({ text: `ROOM ${roomAlloc.room}`, bold: true, size: 24 })]
++                })],
++              })]
++            }));
++            for (let i = 0; i < regulars.length; i += 4) {
++              const rowCells = [];
++              for (let j = 0; j < 4; j++) {
++                const std = regulars[i + j];
++                rowCells.push(new TableCell({
++                  width: { size: 25, type: WidthType.PERCENTAGE },
++                  children: std ? [
++                    new Paragraph({
++                      alignment: AlignmentType.CENTER,
++                      spacing: { before: 200, after: 200 },
++                      children: [
++                        new TextRun({ text: `${std['ROLL NO'] || std['ROLL'] || ''}`, size: 24, bold: true }),
++                        new TextRun({ break: 1, text: `${std['DEPARTMENT'] || ''}, ${std['YEAR'] || ''}, ${std['DIVISION'] || ''}`, size: 20 }),
++                      ],
++                    })
++                  ] : [],
++                }));
++              }
++              stickerTableRows.push(new TableRow({ children: rowCells }));
++            }
++          }
++
++          if (buffers.length > 0) {
++            bufferStickerTableRows.push(new TableRow({
++              children: [new TableCell({
++                columnSpan: 4,
++                children: [new Paragraph({
++                  alignment: AlignmentType.CENTER,
++                  children: [new TextRun({ text: `ROOM ${roomAlloc.room} [BUFFER]`, bold: true, size: 24 })]
++                })],
++              })]
++            }));
++            for (let i = 0; i < buffers.length; i += 4) {
++              const rowCells = [];
++              for (let j = 0; j < 4; j++) {
++                const std = buffers[i + j];
++                rowCells.push(new TableCell({
++                  width: { size: 25, type: WidthType.PERCENTAGE },
++                  children: std ? [
++                    new Paragraph({
++                      alignment: AlignmentType.CENTER,
++                      spacing: { before: 200, after: 200 },
++                      children: [
++                        new TextRun({ text: `${std['ROLL NO'] || std['ROLL'] || ''}`, size: 24, bold: true }),
++                        new TextRun({ break: 1, text: `${std['DEPARTMENT'] || ''}, ${std['YEAR'] || ''}, ${std['DIVISION'] || ''}`, size: 20 }),
++                      ],
++                    })
++                  ] : [],
++                }));
++              }
++              bufferStickerTableRows.push(new TableRow({ children: rowCells }));
+             }
+-            stickerTableRows.push(new TableRow({ children: rowCells }));
+           }
++
+           stickerCheck.add(roomAlloc.room);
+         }
+       });
++
+       const doc = new Document({ sections: [{ properties: {}, children: [new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: stickerTableRows })] }] });
+       const wordBlob = await Packer.toBlob(doc);
+       zip.file("Stickers.docx", wordBlob);
+ 
++      if (bufferStickerTableRows.length > 0) {
++        const bDoc = new Document({ sections: [{ properties: {}, children: [new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: bufferStickerTableRows })] }] });
++        const bWordBlob = await Packer.toBlob(bDoc);
++        zip.file("Buffer_Stickers.docx", bWordBlob);
++      }
++
+       const content = await zip.generateAsync({ type: "blob" });
+       saveAs(content, `Exam_Reports.zip`);
+     } catch (error) { alert("Error generating reports."); } finally { setLoading(false); }
+@@ -188,7 +290,7 @@ const ExamAllocation = () => {
+       // Group by room to ensure one card per room in UI and prevent data reversion
+       const roomsMap = {};
+       batchAllocations.forEach(a => {
+-        if(!roomsMap[a.room]) {
++        if (!roomsMap[a.room]) {
+           roomsMap[a.room] = {
+             roomNo: a.room,
+             students: a.students,
+@@ -196,7 +298,7 @@ const ExamAllocation = () => {
+             assignedFaculty: { 'FULL NAME': a.facultyName, email: a.facultyEmail },
+             batchId: a.batchId,
+             rollRange: a.rollRange,
+-            date: a.date 
++            date: a.date
+           };
+         }
+       });
+@@ -250,12 +352,12 @@ const ExamAllocation = () => {
+   };
+ 
+   const handleDeleteTemplate = async (id) => {
+-    if(window.confirm("Delete this template?")) await deleteTemplate(id);
++    if (window.confirm("Delete this template?")) await deleteTemplate(id);
+   };
+ 
+   const handleDeleteHistory = async (e, historyItem) => {
+     e.stopPropagation();
+-    if(!window.confirm("Are you sure?")) return;
++    if (!window.confirm("Are you sure?")) return;
+     setLoading(true);
+     try { await deleteAllocationBatch(historyItem.batchId, historyItem.id); } catch (error) { alert("Error: " + error.message); } finally { setLoading(false); }
+   };
+@@ -294,10 +396,10 @@ const ExamAllocation = () => {
+   const normalizeName = (name) => (!name ? "" : name.toLowerCase().replace(/dr\.|mr\.|mrs\.|prof\.|asst\./g, "").replace(/[^a-z0-9]/g, ""));
+ 
+   const getRollNum = (val) => {
+-      if (!val) return 0;
+-      const strVal = String(val).replace(/[^0-9]/g, ''); 
+-      const num = parseInt(strVal, 10);
+-      return isNaN(num) ? 0 : num;
++    if (!val) return 0;
++    const strVal = String(val).replace(/[^0-9]/g, '');
++    const num = parseInt(strVal, 10);
++    return isNaN(num) ? 0 : num;
+   };
+ 
+   const handleAllocate = async () => {
+@@ -314,121 +416,122 @@ const ExamAllocation = () => {
+     const busyFacultyNames = new Set();
+ 
+     for (const date of selectedDates) {
+-        const dayAllocations = existingAllocations.filter(alloc => alloc.date === date);
+-        for (const alloc of dayAllocations) {
+-             const allocStart = parseTimeStr(alloc.startTime);
+-             const allocEnd = parseTimeStr(alloc.endTime);
+-             if (newStart < allocEnd && newEnd > allocStart) {
+-                 busyRoomNumbers.add(String(alloc.room).trim()); 
+-                 if (alloc.facultyName) busyFacultyNames.add(normalizeName(alloc.facultyName)); 
+-             }
++      const dayAllocations = existingAllocations.filter(alloc => alloc.date === date);
++      for (const alloc of dayAllocations) {
++        const allocStart = parseTimeStr(alloc.startTime);
++        const allocEnd = parseTimeStr(alloc.endTime);
++        if (newStart < allocEnd && newEnd > allocStart) {
++          busyRoomNumbers.add(String(alloc.room).trim());
++          if (alloc.facultyName) busyFacultyNames.add(normalizeName(alloc.facultyName));
+         }
++      }
+     }
+ 
+     const roomKey = Object.keys(rooms[0] || {}).find(k => k.toLowerCase().includes('room')) || 'ROOM NO';
+-    const sortedAllRooms = rooms.sort((a,b) => getRollNum(a[roomKey]) - getRollNum(b[roomKey]));
++    const sortedAllRooms = rooms.sort((a, b) => getRollNum(a[roomKey]) - getRollNum(b[roomKey]));
+     const availableRooms = sortedAllRooms.filter(r => !busyRoomNumbers.has(String(r[roomKey]).trim()));
+-    
++
+     if (availableRooms.length === 0) {
+-        setLoading(false);
+-        alert("ΓÜá∩╕Å POP-UP: No rooms are available for the selected dates and time slot.");
+-        return;
++      setLoading(false);
++      alert("ΓÜá∩╕Å POP-UP: No rooms are available for the selected dates and time slot.");
++      return;
+     }
+ 
+     const facKey = Object.keys(faculty[0] || {}).find(k => k.toLowerCase().includes('name') || k.toLowerCase().includes('faculty'));
+     const availableFaculty = faculty.filter(f => !busyFacultyNames.has(normalizeName(f[facKey] || "")));
+     const totalCapacity = availableRooms.reduce((sum, r) => sum + parseInt(r['CAPACITY'] || r['capacity'] || 30), 0);
+-    
++
+     if (totalCapacity < students.length) {
+-        setLoading(false);
+-        alert(`ΓÜá∩╕Å CAPACITY ERROR: Rooms only have ${totalCapacity} seats for ${students.length} students.`);
+-        return;
++      setLoading(false);
++      alert(`ΓÜá∩╕Å CAPACITY ERROR: Rooms only have ${totalCapacity} seats for ${students.length} students.`);
++      return;
+     }
+ 
+     setStatusMsg("Allocating...");
+     let registeredUsers = [];
+     try {
+-        const snapshot = await getDocs(collection(db, "faculties"));
+-        registeredUsers = snapshot.docs.map(doc => ({ ...doc.data(), cleanName: normalizeName(doc.data().name) }));
+-    } catch (error) {}
++      const snapshot = await getDocs(collection(db, "faculties"));
++      registeredUsers = snapshot.docs.map(doc => ({ ...doc.data(), cleanName: normalizeName(doc.data().name) }));
++    } catch (error) { }
+ 
+     setTimeout(async () => {
+-        const rollKey = Object.keys(students[0] || {}).find(k => k.toUpperCase().includes('ROLL') || k.toUpperCase().trim() === 'NO') || 'ROLL NO';
+-        const deptKey = Object.keys(students[0] || {}).find(k => k.toUpperCase().includes('DEPT') || k.toUpperCase().includes('DEPARTMENT')) || 'DEPARTMENT';
+-        const facDeptKey = Object.keys(faculty[0] || {}).find(k => k.toUpperCase().includes('DEPT') || k.toUpperCase().includes('DEPARTMENT')) || 'DEPARTMENT';
+-        
+-        const sortedStudents = [...students].sort((a, b) => getRollNum(a[rollKey]) - getRollNum(b[rollKey]));
+-        let studentIdx = 0;
+-        let tentativeAllocations = [];
+-        let usedFacultyIds = new Set();
+-
+-        for (const room of availableRooms) {
+-            if (studentIdx >= sortedStudents.length) break;
+-            const capacity = parseInt(room['CAPACITY'] || room['capacity'] || 30);
+-            let roomStudents = [];
+-            for (let i = 0; i < capacity && studentIdx < sortedStudents.length; i++) {
+-                roomStudents.push(sortedStudents[studentIdx]);
+-                studentIdx++;
+-            }
+-            if (roomStudents.length > 0) {
+-                const deptCounts = {};
+-                roomStudents.forEach(s => { const d = s[deptKey] || 'UNKNOWN'; deptCounts[d] = (deptCounts[d] || 0) + 1; });
+-                const studentDept = Object.keys(deptCounts).reduce((a, b) => deptCounts[a] > deptCounts[b] ? a : b);
+-                tentativeAllocations.push({ roomNo: room[roomKey], students: roomStudents, studentDept, assignedFaculty: null });
+-            }
++      const rollKey = Object.keys(students[0] || {}).find(k => k.toUpperCase().includes('ROLL') || k.toUpperCase().trim() === 'NO') || 'ROLL NO';
++      const deptKey = Object.keys(students[0] || {}).find(k => k.toUpperCase().includes('DEPT') || k.toUpperCase().includes('DEPARTMENT')) || 'DEPARTMENT';
++      const facDeptKey = Object.keys(faculty[0] || {}).find(k => k.toUpperCase().includes('DEPT') || k.toUpperCase().includes('DEPARTMENT')) || 'DEPARTMENT';
++
++      const sortedStudents = [...students].sort((a, b) => getRollNum(a[rollKey]) - getRollNum(b[rollKey]));
++      let studentIdx = 0;
++      let tentativeAllocations = [];
++      let usedFacultyIds = new Set();
++
++      for (const room of availableRooms) {
++        if (studentIdx >= sortedStudents.length) break;
++        const capacity = parseInt(room['CAPACITY'] || room['capacity'] || 30);
++        let roomStudents = [];
++        for (let i = 0; i < capacity && studentIdx < sortedStudents.length; i++) {
++          roomStudents.push(sortedStudents[studentIdx]);
++          studentIdx++;
+         }
+-
+-        const shuffledFaculty = [...availableFaculty].sort(() => 0.5 - Math.random());
+-        let finalAllocations = [];
+-        tentativeAllocations.forEach(alloc => {
+-          let assigned = shuffledFaculty.find(f => !usedFacultyIds.has(f._id) && (f[facDeptKey] || '').trim().toUpperCase() !== (alloc.studentDept || '').trim().toUpperCase());
+-          if (assigned) {
+-              usedFacultyIds.add(assigned._id);
+-              const facultyName = assigned[facKey] || "Unknown";
+-              const matchedUser = registeredUsers.find(u => u.cleanName === normalizeName(facultyName));
+-              alloc.assignedFaculty = { ...assigned, 'FULL NAME': facultyName, email: matchedUser ? matchedUser.email : null };
+-              finalAllocations.push(alloc); 
+-          }
+-        });
+-
+-        if (finalAllocations.length < tentativeAllocations.length) {
+-            setLoading(false);
+-            alert("ΓÜá∩╕Å POP-UP: No faculty members from different departments are available to assign to all rooms.");
+-            return;
++        if (roomStudents.length > 0) {
++          const deptCounts = {};
++          roomStudents.forEach(s => { const d = s[deptKey] || 'UNKNOWN'; deptCounts[d] = (deptCounts[d] || 0) + 1; });
++          const studentDept = Object.keys(deptCounts).reduce((a, b) => deptCounts[a] > deptCounts[b] ? a : b);
++          tentativeAllocations.push({ roomNo: room[roomKey], students: roomStudents, studentDept, assignedFaculty: null });
+         }
++      }
++
++      const shuffledFaculty = [...availableFaculty].sort(() => 0.5 - Math.random());
++      let finalAllocations = [];
++      tentativeAllocations.forEach(alloc => {
++        let assigned = shuffledFaculty.find(f => !usedFacultyIds.has(f._id) && (f[facDeptKey] || '').trim().toUpperCase() !== (alloc.studentDept || '').trim().toUpperCase());
++        if (assigned) {
++          usedFacultyIds.add(assigned._id);
++          const facultyName = assigned[facKey] || "Unknown";
++          const matchedUser = registeredUsers.find(u => u.cleanName === normalizeName(facultyName));
++          alloc.assignedFaculty = { ...assigned, 'FULL NAME': facultyName, email: matchedUser ? matchedUser.email : null };
++          finalAllocations.push(alloc);
++        }
++      });
+ 
+-        if (finalAllocations.length === 0) { setLoading(false); return; }
+-
+-        const batchId = Date.now().toString();
+-        const dbBatch = writeBatch(db);
+-        selectedDates.forEach(date => {
+-            finalAllocations.forEach(a => {
+-                const newDocRef = doc(collection(db, "exam_allocations"));
+-                const firstRoll = getRollNum(a.students[0][rollKey]);
+-                const lastRoll = getRollNum(a.students[a.students.length-1][rollKey]);
+-                dbBatch.set(newDocRef, {
+-                    batchId, room: a.roomNo, facultyEmail: a.assignedFaculty?.email || null, 
+-                    facultyName: a.assignedFaculty?.['FULL NAME'] || "Unknown",
+-                    date, startTime: formatTimeStr(startTime), endTime: formatTimeStr(endTime),
+-                    department: a.studentDept, students: a.students, studentCount: a.students.length,
+-                    rollRange: `${firstRoll} - ${lastRoll}`, timestamp: new Date().toISOString()
+-                });
+-                a.rollRange = `${firstRoll} - ${lastRoll}`;
+-                a.date = date; 
+-                a.batchId = batchId;
+-            });
++      if (finalAllocations.length < tentativeAllocations.length) {
++        setLoading(false);
++        alert("ΓÜá∩╕Å POP-UP: No faculty members from different departments are available to assign to all rooms.");
++        return;
++      }
++
++      if (finalAllocations.length === 0) { setLoading(false); return; }
++
++      const batchId = Date.now().toString();
++      const dbBatch = writeBatch(db);
++      selectedDates.forEach(date => {
++        finalAllocations.forEach(a => {
++          const newDocRef = doc(collection(db, "exam_allocations"));
++          const firstRoll = getRollNum(a.students[0][rollKey]);
++          const lastRoll = getRollNum(a.students[a.students.length - 1][rollKey]);
++          dbBatch.set(newDocRef, {
++            batchId, room: a.roomNo, facultyEmail: a.assignedFaculty?.email || null,
++            facultyName: a.assignedFaculty?.['FULL NAME'] || "Unknown",
++            date, startTime: formatTimeStr(startTime), endTime: formatTimeStr(endTime),
++            department: a.studentDept, students: a.students, studentCount: a.students.length,
++            rollRange: `${firstRoll} - ${lastRoll}`, timestamp: new Date().toISOString()
++          });
++          a.rollRange = `${firstRoll} - ${lastRoll}`;
++          a.date = date;
++          a.batchId = batchId;
+         });
++      });
+ 
+-        await dbBatch.commit();
+-        saveAllocationHistory({ 
+-          batchId, date: selectedDates.join(", "), roomCount: finalAllocations.length, studentCount: students.length,
+-          department: finalAllocations[0].studentDept, rollRange: `${getRollNum(sortedStudents[0][rollKey])} - ${getRollNum(sortedStudents[sortedStudents.length-1][rollKey])}`,
+-          allocatedRooms: finalAllocations.map(a => a.roomNo).join(", ")
+-        });
+-        setAllocations(finalAllocations);
+-        setReserveFaculty(shuffledFaculty.filter(f => !usedFacultyIds.has(f._id)));
+-        setStep(2);
+-        setLoading(false);
++      await dbBatch.commit();
++      saveAllocationHistory({
++        batchId, date: selectedDates.join(", "), roomCount: finalAllocations.length, studentCount: students.length,
++        department: finalAllocations[0].studentDept, rollRange: `${getRollNum(sortedStudents[0][rollKey])} - ${getRollNum(sortedStudents[sortedStudents.length - 1][rollKey])}`,
++        allocatedRooms: finalAllocations.map(a => a.roomNo).join(", "),
++        startTime: formatTimeStr(startTime), endTime: formatTimeStr(endTime)
++      });
++      setAllocations(finalAllocations);
++      setReserveFaculty(shuffledFaculty.filter(f => !usedFacultyIds.has(f._id)));
++      setStep(2);
++      setLoading(false);
+     }, 1000);
+   };
+ 
+@@ -442,23 +545,23 @@ const ExamAllocation = () => {
+     const oldFacultyMember = targetAlloc.assignedFaculty;
+     setLoading(true);
+     try {
+-        const snapshot = await getDocs(collection(db, "faculties"));
+-        const registeredUsers = snapshot.docs.map(doc => ({ ...doc.data(), cleanName: normalizeName(doc.data().name) }));
+-        const matchedUser = registeredUsers.find(u => u.cleanName === normalizeName(newFacName));
+-        const newEmail = matchedUser ? matchedUser.email : null;
+-        const dbBatch = writeBatch(db);
+-        const q = query(collection(db, "exam_allocations"), where("batchId", "==", targetAlloc.batchId || ""), where("room", "==", targetAlloc.roomNo));
+-        const allocationsSnap = await getDocs(q);
+-        allocationsSnap.docs.forEach((docSnap) => {
+-            dbBatch.update(docSnap.ref, { facultyEmail: newEmail, facultyName: newFacName, timestamp: new Date().toISOString() });
+-        });
+-        await dbBatch.commit();
+-        targetAlloc.assignedFaculty = { ...newFacultyMember, 'FULL NAME': newFacName, email: newEmail };
+-        const updatedReserves = reserveFaculty.filter(f => f._id !== facultyId);
+-        if (oldFacultyMember) updatedReserves.push(oldFacultyMember);
+-        setAllocations(updatedAllocations);
+-        setReserveFaculty(updatedReserves);
+-        alert(`Swapped.`);
++      const snapshot = await getDocs(collection(db, "faculties"));
++      const registeredUsers = snapshot.docs.map(doc => ({ ...doc.data(), cleanName: normalizeName(doc.data().name) }));
++      const matchedUser = registeredUsers.find(u => u.cleanName === normalizeName(newFacName));
++      const newEmail = matchedUser ? matchedUser.email : null;
++      const dbBatch = writeBatch(db);
++      const q = query(collection(db, "exam_allocations"), where("batchId", "==", targetAlloc.batchId || ""), where("room", "==", targetAlloc.roomNo));
++      const allocationsSnap = await getDocs(q);
++      allocationsSnap.docs.forEach((docSnap) => {
++        dbBatch.update(docSnap.ref, { facultyEmail: newEmail, facultyName: newFacName, timestamp: new Date().toISOString() });
++      });
++      await dbBatch.commit();
++      targetAlloc.assignedFaculty = { ...newFacultyMember, 'FULL NAME': newFacName, email: newEmail };
++      const updatedReserves = reserveFaculty.filter(f => f._id !== facultyId);
++      if (oldFacultyMember) updatedReserves.push(oldFacultyMember);
++      setAllocations(updatedAllocations);
++      setReserveFaculty(updatedReserves);
++      alert(`Swapped.`);
+     } catch (error) { alert("Error."); } finally { setLoading(false); }
+   };
+ 
+@@ -471,12 +574,12 @@ const ExamAllocation = () => {
+       const wb = XLSX.read(evt.target.result, { type: 'binary' });
+       let allData = [];
+       wb.SheetNames.forEach(sheetName => {
+-          const sheetData = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+-          allData = [...allData, ...sheetData.map((row, index) => {
+-            const newRow = { _id: `${type}_${sheetName}_${index}_${Math.random()}` };
+-            Object.keys(row).forEach(key => { newRow[key.trim().toUpperCase()] = row[key]; });
+-            return newRow;
+-          })];
++        const sheetData = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
++        allData = [...allData, ...sheetData.map((row, index) => {
++          const newRow = { _id: `${type}_${sheetName}_${index}_${Math.random()}` };
++          Object.keys(row).forEach(key => { newRow[key.trim().toUpperCase()] = row[key]; });
++          return newRow;
++        })];
+       });
+       if (type === 'students') setStudents(allData);
+       else if (type === 'rooms') setRooms(allData);
+@@ -485,12 +588,41 @@ const ExamAllocation = () => {
+     reader.readAsBinaryString(file);
+   };
+ 
++  const handleAddBuffer = async () => {
++    if (!bufferStudent.rollNo || !bufferStudent.name) return alert("Roll No and Name are required");
++    setLoading(true);
++    try {
++      const targetAlloc = allocations[bufferRoomIndex];
++      const newStudent = {
++        'ROLL NO': bufferStudent.rollNo,
++        'NAME': bufferStudent.name,
++        'DEPARTMENT': bufferStudent.department || targetAlloc.studentDept || '',
++        'YEAR': bufferStudent.year || targetAlloc.students[0]?.['YEAR'] || '',
++        'DIVISION': bufferStudent.division || targetAlloc.students[0]?.['DIVISION'] || ''
++      };
++
++      await addBufferStudentToAllocation(targetAlloc.batchId, targetAlloc.roomNo, newStudent);
++
++      const updatedAllocations = [...allocations];
++      updatedAllocations[bufferRoomIndex].students.push({ ...newStudent, isBuffer: true });
++      setAllocations(updatedAllocations);
++
++      setShowBufferModal(false);
++      setBufferStudent({ rollNo: '', name: '', department: '', year: '', division: '' });
++      alert("Buffer student added successfully!");
++    } catch (err) {
++      alert("Error adding buffer student");
++    } finally {
++      setLoading(false);
++    }
++  };
++
+   const TimeSelect = ({ value, onChange }) => (
+     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+-        <select value={value.hour} onChange={e => onChange({...value, hour: e.target.value})} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', minWidth:'60px' }}>{[...Array(12).keys()].map(i => <option key={i+1} value={String(i+1).padStart(2,'0')}>{String(i+1).padStart(2,'0')}</option>)}</select>
+-        <span>:</span>
+-        <select value={value.minute} onChange={e => onChange({...value, minute: e.target.value})} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', minWidth:'60px' }}>{['00','15','30','45'].map(m => <option key={m} value={m}>{m}</option>)}</select>
+-        <select value={value.period} onChange={e => onChange({...value, period: e.target.value})} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', minWidth:'60px' }}><option value="AM">AM</option><option value="PM">PM</option></select>
++      <select value={value.hour} onChange={e => onChange({ ...value, hour: e.target.value })} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', minWidth: '60px' }}>{[...Array(12).keys()].map(i => <option key={i + 1} value={String(i + 1).padStart(2, '0')}>{String(i + 1).padStart(2, '0')}</option>)}</select>
++      <span>:</span>
++      <select value={value.minute} onChange={e => onChange({ ...value, minute: e.target.value })} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', minWidth: '60px' }}>{['00', '15', '30', '45'].map(m => <option key={m} value={m}>{m}</option>)}</select>
++      <select value={value.period} onChange={e => onChange({ ...value, period: e.target.value })} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', minWidth: '60px' }}><option value="AM">AM</option><option value="PM">PM</option></select>
+     </div>
+   );
+ 
+@@ -499,51 +631,77 @@ const ExamAllocation = () => {
+       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
+         <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+           <h2 className="page-title">Exam Dashboard</h2>
+-          <div style={{display:'flex', gap:'10px'}}>
+-            <button className="add-btn" onClick={handleResetSystem} style={{backgroundColor: '#dc2626'}}><ShieldAlert size={18}/> Reset</button>
+-            <button className="add-btn" onClick={handleStartScratch} style={{backgroundColor: '#4F46E5'}}><RefreshCw size={18}/> New Allocation</button>
++          <div style={{ display: 'flex', gap: '10px' }}>
++            <button className="add-btn" onClick={handleResetSystem} style={{ backgroundColor: '#dc2626' }}><ShieldAlert size={18} /> Reset</button>
++            <button className="add-btn" onClick={handleStartScratch} style={{ backgroundColor: '#4F46E5' }}><RefreshCw size={18} /> New Allocation</button>
+           </div>
+         </div>
+ 
+         <div>
+-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom: '1rem' }}>
+-                <h3 style={{ display:'flex', alignItems:'center', gap:'10px', color:'#374151', margin: 0 }}><Clock size={20}/> Recent Allocations</h3>
+-                <div style={{ textAlign: 'right' }}>
+-                    <button onClick={handleDownloadAllReports} style={{ backgroundColor: '#4F46E5', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+-                        <Download size={18}/> Download Zip
+-                    </button>
+-                    <button onClick={handleSelectAll} style={{ background: 'none', border: 'none', color: '#4F46E5', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', marginTop: '5px', textDecoration: 'underline' }}>
+-                        {selectedBatches.length === history.length ? "Deselect All" : "Select All"}
+-                    </button>
+-                </div>
++          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1rem' }}>
++            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
++              <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#374151', margin: 0 }}><Clock size={20} /> Recent Allocations</h3>
++              <div style={{ display: 'flex', alignItems: 'center', background: 'white', border: '1px solid #d1d5db', borderRadius: '8px', padding: '6px 15px', width: '300px' }}>
++                <Search size={16} color="#9ca3af" style={{ marginRight: '8px' }} />
++                <input
++                  type="text"
++                  placeholder="Search by dept, date, or roll..."
++                  value={searchQuery}
++                  onChange={(e) => setSearchQuery(e.target.value)}
++                  style={{ border: 'none', outline: 'none', width: '100%', fontSize: '14px' }}
++                />
++              </div>
++            </div>
++            <div style={{ textAlign: 'right' }}>
++              <button onClick={handleDownloadAllReports} style={{ backgroundColor: '#4F46E5', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
++                <Download size={18} /> Download Zip
++              </button>
++              <button onClick={handleSelectAll} style={{ background: 'none', border: 'none', color: '#4F46E5', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', marginTop: '5px', textDecoration: 'underline' }}>
++                {selectedBatches.length === history.length ? "Deselect All" : "Select All"}
++              </button>
+             </div>
++          </div>
+ 
+-            <div style={{ maxHeight: '550px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '15px', backgroundColor: '#f9fafb' }}>
+-                <div style={{ display:'grid', gap:'10px' }}>
+-                    {history.map(h => {
+-                        const allocDate = new Date(h.date.split(',')[0]); 
+-                        const isPast = allocDate < new Date().setHours(0,0,0,0);
+-                        return (
+-                        <div key={h.id} onClick={() => handleOpenRecent(h)} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', backgroundColor:'white', padding:'15px 20px', borderRadius:'10px', border:'1px solid #e5e7eb', cursor: 'pointer', transition: 'box-shadow 0.2s' }}>
+-                            <div>
+-                                <h5 style={{ margin:0, fontWeight:'bold' }}>Allocation on {h.date}</h5>
+-                                <span style={{ fontSize:'12px', color:'#6b7280', display: 'block' }}>{h.roomCount} Rooms ΓÇó {h.studentCount} Students</span>
+-                                <span style={{ fontSize:'12px', color:'#4F46E5', fontWeight: '500' }}>Dept: {h.department || "N/A"} ΓÇó Roll: {h.rollRange || "N/A"}</span>
+-                                <div style={{ fontSize:'11px', color:'#9ca3af', marginTop: '4px' }}>Rooms: {h.allocatedRooms || "N/A"}</div>
+-                            </div>
+-                            <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+-                                <span style={{ fontSize:'10px', fontWeight:'bold', color: isPast ? '#059669' : '#4F46E5', backgroundColor: isPast ? '#d1fae5' : '#eef2ff', padding:'4px 10px', borderRadius:'12px' }}>
+-                                    {isPast ? "COMPLETED" : "ASSIGNED"}
+-                                </span>
+-                                <button onClick={(e) => handleDeleteHistory(e, h)} style={{ color:'#ef4444', background:'none', border:'none', cursor:'pointer' }}><Trash2 size={18}/></button>
+-                                <div onClick={(e) => toggleBatchSelection(e, h.batchId)} style={{ cursor: 'pointer' }}>
+-                                    {selectedBatches.includes(h.batchId) ? <CheckSquare color="#4F46E5" size={24}/> : <Square color="#d1d5db" size={24}/>}
+-                                </div>
+-                            </div>
+-                        </div>
+-                    )})}
+-                </div>
++          <div style={{ maxHeight: '550px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '15px', backgroundColor: '#f9fafb' }}>
++            <div style={{ display: 'grid', gap: '10px' }}>
++              {history.filter(h => {
++                const q = searchQuery.toLowerCase();
++                const dept = h.department ? h.department.toLowerCase() : "";
++                const rr = h.rollRange ? h.rollRange.toLowerCase() : "";
++                const dt = h.date ? h.date.toLowerCase() : "";
++                return dept.includes(q) || rr.includes(q) || dt.includes(q);
++              }).map(h => {
++                const allocDate = new Date(h.date.split(',')[0]);
++                const isPast = allocDate < new Date().setHours(0, 0, 0, 0);
++                return (
++                  <div key={h.id} onClick={() => handleOpenRecent(h)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white', padding: '15px 20px', borderRadius: '10px', border: '1px solid #e5e7eb', cursor: 'pointer', transition: 'box-shadow 0.2s' }}>
++                    <div>
++                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
++                        <h5 style={{ margin: 0, fontWeight: 'bold' }}>Allocation on {h.date}</h5>
++                        {(h.startTime && h.endTime) && (
++                          <span style={{ fontSize: '11px', background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
++                            <Clock size={12} /> {h.startTime} - {h.endTime}
++                          </span>
++                        )}
++                      </div>
++                      <span style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginTop: '5px' }}>{h.roomCount} Rooms ΓÇó {h.studentCount} Students</span>
++                      <span style={{ fontSize: '12px', color: '#4F46E5', fontWeight: '500' }}>Dept: {h.department || "N/A"} ΓÇó Roll: {h.rollRange || "N/A"}</span>
++                      <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>Rooms: {h.allocatedRooms || "N/A"}</div>
++                    </div>
++                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
++                      <span style={{ fontSize: '10px', fontWeight: 'bold', color: isPast ? '#059669' : '#4F46E5', backgroundColor: isPast ? '#d1fae5' : '#eef2ff', padding: '4px 10px', borderRadius: '12px' }}>
++                        {isPast ? "COMPLETED" : "ASSIGNED"}
++                      </span>
++                      <button onClick={(e) => handleDeleteHistory(e, h)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={18} /></button>
++                      <div onClick={(e) => toggleBatchSelection(e, h.batchId)} style={{ cursor: 'pointer' }}>
++                        {selectedBatches.includes(h.batchId) ? <CheckSquare color="#4F46E5" size={24} /> : <Square color="#d1d5db" size={24} />}
++                      </div>
++                    </div>
++                  </div>
++                )
++              })}
+             </div>
++          </div>
+         </div>
+       </div>
+     );
+@@ -552,60 +710,60 @@ const ExamAllocation = () => {
+   const facDeptKey = faculty.length > 0 ? Object.keys(faculty[0]).find(k => k.toUpperCase().includes('DEPT') || k.toUpperCase().includes('DEPARTMENT')) || 'DEPARTMENT' : 'DEPARTMENT';
+ 
+   return (
+-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding:'20px' }}>
++    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
+       <div className="page-header">
+-        <button onClick={() => setView('dashboard')} style={{ background:'none', border:'none', cursor:'pointer' }}><ArrowLeft size={24}/></button>
++        <button onClick={() => setView('dashboard')} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><ArrowLeft size={24} /></button>
+         <h2 className="page-title">Exam Room Allocation</h2>
+       </div>
+       {step === 1 && (
+         <div className="allocation-grid">
+           <div className="alloc-card">
+-            <h3><Upload size={24} color="#4F46E5"/> Data Sources</h3>
++            <h3><Upload size={24} color="#4F46E5" /> Data Sources</h3>
+             {['students', 'rooms', 'faculty'].map((type) => (
+-               <div key={type} className="file-upload-group">
+-                 <label className="file-upload-label">{type.toUpperCase()}</label>
+-                 <div className="file-upload-box" onClick={() => document.getElementById(`file-${type}`).click()}>
+-                    <input id={`file-${type}`} type="file" accept=".xlsx" hidden onChange={(e) => handleFileUpload(e, type)} />
+-                    <FileSpreadsheet size={32} color={fileNames[type] ? "#059669" : "#9ca3af"}/>
+-                    <div className="file-name-display">{fileNames[type] || "Upload .xlsx"}</div>
+-                 </div>
+-               </div>
++              <div key={type} className="file-upload-group">
++                <label className="file-upload-label">{type.toUpperCase()}</label>
++                <div className="file-upload-box" onClick={() => document.getElementById(`file-${type}`).click()}>
++                  <input id={`file-${type}`} type="file" accept=".xlsx" hidden onChange={(e) => handleFileUpload(e, type)} />
++                  <FileSpreadsheet size={32} color={fileNames[type] ? "#059669" : "#9ca3af"} />
++                  <div className="file-name-display">{fileNames[type] || "Upload .xlsx"}</div>
++                </div>
++              </div>
+             ))}
+           </div>
+           <div className="alloc-card">
+-            <h3><Calendar size={24} color="#4F46E5"/> Exam Schedule</h3>
+-            <div style={{ marginBottom: '1.5rem', position:'relative' }}>
++            <h3><Calendar size={24} color="#4F46E5" /> Exam Schedule</h3>
++            <div style={{ marginBottom: '1.5rem', position: 'relative' }}>
+               <label className="file-upload-label">Select Dates</label>
+-              <div onClick={() => setShowCalendar(!showCalendar)} style={{ padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor:'white' }}>
++              <div onClick={() => setShowCalendar(!showCalendar)} style={{ padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white' }}>
+                 <span>{selectedDates.length > 0 ? selectedDates.join(", ") : "Click to select"}</span>
+                 <Calendar size={18} color="#64748b" />
+               </div>
+               {showCalendar && (
+                 <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10, background: 'white', border: '1px solid #e5e7eb', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', padding: '20px', borderRadius: '12px', width: '320px' }}>
+-                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
+-                      <div style={{display:'flex', gap:'5px'}}>
+-                        <select value={currentMonth} onChange={(e) => setCurrentMonth(parseInt(e.target.value))} style={{border:'1px solid #e2e8f0', borderRadius:'6px', padding:'4px'}}>
+-                          {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((m, i) => <option key={m} value={i}>{m}</option>)}
+-                        </select>
+-                        <select value={currentYear} onChange={(e) => setCurrentYear(parseInt(e.target.value))} style={{border:'1px solid #e2e8f0', borderRadius:'6px', padding:'4px'}}>
+-                          {Array.from({length: 10}, (_, i) => new Date().getFullYear() - 2 + i).map(y => <option key={y} value={y}>{y}</option>)}
+-                        </select>
+-                      </div>
+-                      <X size={16} style={{cursor:'pointer'}} onClick={()=>setShowCalendar(false)}/>
++                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
++                    <div style={{ display: 'flex', gap: '5px' }}>
++                      <select value={currentMonth} onChange={(e) => setCurrentMonth(parseInt(e.target.value))} style={{ border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px' }}>
++                        {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((m, i) => <option key={m} value={i}>{m}</option>)}
++                      </select>
++                      <select value={currentYear} onChange={(e) => setCurrentYear(parseInt(e.target.value))} style={{ border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px' }}>
++                        {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => <option key={y} value={y}>{y}</option>)}
++                      </select>
+                     </div>
+-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '5px' }}>
+-                        {[...Array(new Date(currentYear, currentMonth + 1, 0).getDate()).keys()].map(d => {
+-                            const ds = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d+1).padStart(2,'0')}`;
+-                            return <button key={d} onClick={() => toggleDate(ds)} style={{ padding: '8px', borderRadius: '6px', background: selectedDates.includes(ds) ? '#4F46E5' : '#f8fafc', color: selectedDates.includes(ds) ? 'white' : '#475569', cursor: 'pointer' }}>{d+1}</button>;
+-                        })}
+-                    </div>
+-                    <button onClick={() => setShowCalendar(false)} style={{ width: '100%', marginTop: '15px', padding: '10px', background: '#4F46E5', color: 'white', border: 'none', borderRadius: '8px', cursor:'pointer' }}>Confirm</button>
++                    <X size={16} style={{ cursor: 'pointer' }} onClick={() => setShowCalendar(false)} />
++                  </div>
++                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '5px' }}>
++                    {[...Array(new Date(currentYear, currentMonth + 1, 0).getDate()).keys()].map(d => {
++                      const ds = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d + 1).padStart(2, '0')}`;
++                      return <button key={d} onClick={() => toggleDate(ds)} style={{ padding: '8px', borderRadius: '6px', background: selectedDates.includes(ds) ? '#4F46E5' : '#f8fafc', color: selectedDates.includes(ds) ? 'white' : '#475569', cursor: 'pointer' }}>{d + 1}</button>;
++                    })}
++                  </div>
++                  <button onClick={() => setShowCalendar(false)} style={{ width: '100%', marginTop: '15px', padding: '10px', background: '#4F46E5', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Confirm</button>
+                 </div>
+               )}
+             </div>
+             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+-                <TimeSelect value={startTime} onChange={setStartTime} />
+-                <TimeSelect value={endTime} onChange={setEndTime} />
++              <TimeSelect value={startTime} onChange={setStartTime} />
++              <TimeSelect value={endTime} onChange={setEndTime} />
+             </div>
+             <button className="action-btn" onClick={handleAllocate} disabled={loading}>{loading ? <RefreshCw className="animate-spin" /> : <UserCheck />}{loading ? "Processing..." : "Check Availability & Allocate"}</button>
+           </div>
+@@ -614,38 +772,86 @@ const ExamAllocation = () => {
+       {step === 2 && (
+         <div>
+           <div className="stats-bar" style={{ display: 'flex', justifyContent: 'space-between', background: 'white', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem' }}>
+-             <div><strong>Allocation Success!</strong><br/><span style={{ fontSize: '14px', color: '#6b7280' }}>Allocated {allocations.length} rooms.</span></div>
+-             <button onClick={() => setView('dashboard')} style={{ background: '#4F46E5', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold' }}>Dashboard</button>
++            <div><strong>Allocation Success!</strong><br /><span style={{ fontSize: '14px', color: '#6b7280' }}>Allocated {allocations.length} rooms.</span></div>
++            <button onClick={() => setView('dashboard')} style={{ background: '#4F46E5', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold' }}>Dashboard</button>
+           </div>
+           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+             {allocations.map((alloc, idx) => {
+               const diffDeptFaculty = reserveFaculty.filter(f => (f[facDeptKey] || '').trim().toUpperCase() !== (alloc.studentDept || '').trim().toUpperCase());
+               return (
+-              <div key={idx} style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
+-                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f3f4f6', marginBottom: '1rem' }}>
+-                   <span style={{ fontWeight: 'bold' }}>Room {alloc.roomNo}</span>
+-                   <div style={{ textAlign: 'right' }}>
+-                     <div style={{ color: '#6b7280', fontSize: '11px' }}>{alloc.date}</div>
+-                     <div style={{ color: '#4F46E5', fontSize: '12px', fontWeight: 'bold' }}>{alloc.rollRange}</div>
+-                   </div>
+-                 </div>
+-                 <div style={{ background: alloc.assignedFaculty ? '#EEF2FF' : '#fee2e2', color: alloc.assignedFaculty ? '#4F46E5' : '#991b1b', padding: '8px', borderRadius: '6px', textAlign: 'center', fontWeight: '600', marginBottom:'10px' }}>{alloc.assignedFaculty ? alloc.assignedFaculty['FULL NAME'] : 'ΓÜá No Faculty'}</div>
+-                 <select 
+-                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db', marginTop:'10px' }} 
+-                    onChange={(e) => handleSwap(idx, e.target.value)} 
++                <div key={idx} style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
++                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f3f4f6', marginBottom: '1rem' }}>
++                    <span style={{ fontWeight: 'bold' }}>Room {alloc.roomNo}</span>
++                    <div style={{ textAlign: 'right' }}>
++                      <div style={{ color: '#6b7280', fontSize: '11px' }}>{alloc.date}</div>
++                      <div style={{ color: '#4F46E5', fontSize: '12px', fontWeight: 'bold' }}>{alloc.rollRange}</div>
++                    </div>
++                  </div>
++                  <div style={{ background: alloc.assignedFaculty ? '#EEF2FF' : '#fee2e2', color: alloc.assignedFaculty ? '#4F46E5' : '#991b1b', padding: '8px', borderRadius: '6px', textAlign: 'center', fontWeight: '600', marginBottom: '10px' }}>{alloc.assignedFaculty ? alloc.assignedFaculty['FULL NAME'] : 'ΓÜá No Faculty'}</div>
++                  <select
++                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db', marginTop: '10px' }}
++                    onChange={(e) => handleSwap(idx, e.target.value)}
+                     value=""
+-                 >
++                  >
+                     <option value="" disabled>≡ƒöä Swap Faculty</option>
+                     {diffDeptFaculty.length > 0 ? diffDeptFaculty.map((f) => (
+-                        <option key={f._id} value={f._id}>{f['FULL NAME'] || f['FACULTY NAME'] || f['Name']} ({f[facDeptKey]})</option>
+-                      )) : <option disabled>No faculty available</option>}
+-                 </select>
+-              </div>
+-            )})}
++                      <option key={f._id} value={f._id}>{f['FULL NAME'] || f['FACULTY NAME'] || f['Name']} ({f[facDeptKey]})</option>
++                    )) : <option disabled>No faculty available</option>}
++                  </select>
++
++                  <button
++                    onClick={() => { setBufferRoomIndex(idx); setShowBufferModal(true); }}
++                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px dashed #4F46E5', color: '#4F46E5', marginTop: '10px', background: 'transparent', cursor: 'pointer', fontWeight: 'bold' }}>
++                    + Add On-Spot Buffer Student
++                  </button>
++
++                  {alloc.students.filter(s => s.isBuffer).length > 0 && (
++                    <div style={{ marginTop: '10px', fontSize: '11px', color: '#b45309', background: '#fffbeb', padding: '6px', borderRadius: '4px' }}>
++                      <strong>Buffer Students:</strong>
++                      {alloc.students.filter(s => s.isBuffer).map((bs, bi) => (
++                        <div key={bi} style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
++                          <span>{bs['NAME']} ({bs['ROLL NO']})</span>
++                          <span style={{ background: '#f59e0b', color: 'white', padding: '2px 4px', borderRadius: '4px', fontSize: '9px' }}>BUFFER</span>
++                        </div>
++                      ))}
++                    </div>
++                  )}
++                </div>
++              )
++            })}
+           </div>
++
++          {showBufferModal && allocations[bufferRoomIndex] && (
++            <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
++              <div style={{ backgroundColor: 'white', width: '400px', padding: '30px', borderRadius: '24px', position: 'relative' }}>
++                <button onClick={() => setShowBufferModal(false)} style={{ position: 'absolute', right: '20px', top: '20px', background: 'none', border: 'none', cursor: 'pointer' }}><X /></button>
++                <h3 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '15px' }}>Add Buffer Student</h3>
++                <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>Adding on-spot student to Room {allocations[bufferRoomIndex].roomNo}</p>
++
++                <div style={{ display: 'grid', gap: '15px', marginBottom: '25px' }}>
++                  <div>
++                    <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '5px' }}>Roll Number *</label>
++                    <input type="text" value={bufferStudent.rollNo} onChange={(e) => setBufferStudent({ ...bufferStudent, rollNo: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e1', borderRadius: '8px' }} placeholder="Enter Roll No" />
++                  </div>
++                  <div>
++                    <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '5px' }}>Student Name *</label>
++                    <input type="text" value={bufferStudent.name} onChange={(e) => setBufferStudent({ ...bufferStudent, name: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e1', borderRadius: '8px' }} placeholder="Enter Student Name" />
++                  </div>
++                  <div>
++                    <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '5px' }}>Department (Optional)</label>
++                    <input type="text" value={bufferStudent.department} onChange={(e) => setBufferStudent({ ...bufferStudent, department: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e1', borderRadius: '8px' }} placeholder="Default: Room's Dept" />
++                  </div>
++                </div>
++
++                <button onClick={handleAddBuffer} disabled={loading} style={{ width: '100%', padding: '12px', background: '#4F46E5', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
++                  {loading ? 'Adding...' : 'Save Buffer Student'}
++                </button>
++              </div>
++            </div>
++          )}
+         </div>
+       )}
+-      <div style={{ marginTop:'20px', textAlign:'center', color:'#6b7280' }}>all the best</div>
++      <div style={{ marginTop: '20px', textAlign: 'center', color: '#6b7280' }}>all the best</div>
+     </div>
+   );
+ };
+diff --git a/src/pages/FacultyDuties.jsx b/src/pages/FacultyDuties.jsx
+index f5db6d5..83d0036 100644
+--- a/src/pages/FacultyDuties.jsx
++++ b/src/pages/FacultyDuties.jsx
+@@ -1,35 +1,37 @@
+ import React, { useState, useEffect } from 'react';
+-import { 
+-  Calendar, Clock, MapPin, CheckCircle, ClipboardList, User, Users, X, Info, Search, FileSpreadsheet, Check, Minus 
++import {
++  Calendar, Clock, MapPin, CheckCircle, ClipboardList, User, Users, X, Info, Search, FileSpreadsheet, Check, Minus
+ } from 'lucide-react';
+ // Import the update function
+-import { subscribeToAllAllocations, updateDutyAttendance } from '../utils/db'; 
++import { subscribeToAllAllocations, updateDutyAttendance } from '../utils/db';
+ 
+ const FacultyDuties = ({ user }) => {
+   const [duties, setDuties] = useState([]);
+   const [loading, setLoading] = useState(true);
+   const [selectedDuty, setSelectedDuty] = useState(null);
+   const [showAttendance, setShowAttendance] = useState(false);
+-  const [attendanceData, setAttendanceData] = useState({}); 
++  const [attendanceData, setAttendanceData] = useState({});
++  const [hpcData, setHpcData] = useState({});
++  const [ccData, setCcData] = useState({});
+ 
+   useEffect(() => {
+     const myEmail = user?.email ? user.email.toLowerCase().trim() : "";
+     const myName = user?.name ? user.name.toLowerCase().trim() : "";
+-    
++
+     const cleanName = (str) => {
+-        if (!str) return "";
+-        return str.toLowerCase()
+-            .replace(/dr\.|mr\.|mrs\.|prof\.|asst\./g, "")
+-            .replace(/[^a-z0-9]/g, "");
++      if (!str) return "";
++      return str.toLowerCase()
++        .replace(/dr\.|mr\.|mrs\.|prof\.|asst\./g, "")
++        .replace(/[^a-z0-9]/g, "");
+     };
+ 
+     const myCleanName = cleanName(myName);
+ 
+     const unsubscribe = subscribeToAllAllocations((allAllocations) => {
+       const myDuties = allAllocations.filter(alloc => {
+-          if (alloc.facultyEmail && alloc.facultyEmail.toLowerCase().trim() === myEmail) return true;
+-          const dbCleanName = cleanName(alloc.facultyName || "");
+-          return dbCleanName && (dbCleanName.includes(myCleanName) || myCleanName.includes(dbCleanName));
++        if (alloc.facultyEmail && alloc.facultyEmail.toLowerCase().trim() === myEmail) return true;
++        const dbCleanName = cleanName(alloc.facultyName || "");
++        return dbCleanName && (dbCleanName.includes(myCleanName) || myCleanName.includes(dbCleanName));
+       });
+ 
+       myDuties.sort((a, b) => new Date(b.date) - new Date(a.date));
+@@ -40,12 +42,15 @@ const FacultyDuties = ({ user }) => {
+     return () => unsubscribe();
+   }, [user]);
+ 
+-  // Load existing attendance data when a duty is selected
+   useEffect(() => {
+     if (selectedDuty) {
+       setAttendanceData(selectedDuty.attendanceData || {});
++      setHpcData(selectedDuty.hpcData || {});
++      setCcData(selectedDuty.ccData || {});
+     } else {
+       setAttendanceData({});
++      setHpcData({});
++      setCcData({});
+       setShowAttendance(false);
+     }
+   }, [selectedDuty]);
+@@ -54,24 +59,24 @@ const FacultyDuties = ({ user }) => {
+ 
+   const getStatus = (dateStr, endTimeStr) => {
+     try {
+-        const now = new Date();
+-        const [year, month, day] = dateStr.split('-').map(Number);
+-        let [time, modifier] = endTimeStr.split(' ');
+-        let [hours, minutes] = time.split(':').map(Number);
+-        if (modifier === 'PM' && hours < 12) hours += 12;
+-        if (modifier === 'AM' && hours === 12) hours = 0;
+-        const examEnd = new Date(year, month - 1, day, hours, minutes);
+-        return now > examEnd ? "Completed" : "Assigned";
++      const now = new Date();
++      const [year, month, day] = dateStr.split('-').map(Number);
++      let [time, modifier] = endTimeStr.split(' ');
++      let [hours, minutes] = time.split(':').map(Number);
++      if (modifier === 'PM' && hours < 12) hours += 12;
++      if (modifier === 'AM' && hours === 12) hours = 0;
++      const examEnd = new Date(year, month - 1, day, hours, minutes);
++      return now > examEnd ? "Completed" : "Assigned";
+     } catch (e) {
+-        return "Assigned";
++      return "Assigned";
+     }
+   };
+ 
+   const handleMarkAllPresent = () => {
+     const newData = {};
+     selectedDuty.students?.forEach(stu => {
+-        const roll = stu['ROLL NO'] || stu.roll;
+-        newData[roll] = 'Present';
++      const roll = stu['ROLL NO'] || stu.roll;
++      newData[roll] = 'Present';
+     });
+     setAttendanceData(prev => ({ ...prev, ...newData }));
+   };
+@@ -79,21 +84,21 @@ const FacultyDuties = ({ user }) => {
+   const isAttendanceComplete = () => {
+     if (!selectedDuty?.students) return false;
+     return selectedDuty.students.every(stu => {
+-        const roll = stu['ROLL NO'] || stu.roll;
+-        return attendanceData[roll] === 'Present' || attendanceData[roll] === 'Absent';
++      const roll = stu['ROLL NO'] || stu.roll;
++      return attendanceData[roll] === 'Present' || attendanceData[roll] === 'Absent';
+     });
+   };
+ 
+   const handleAttendanceSubmit = async () => {
+     if (!isAttendanceComplete()) return;
+-    
++
+     const present = Object.values(attendanceData).filter(v => v === 'Present').length;
+     const absent = Object.values(attendanceData).filter(v => v === 'Absent').length;
+     const summary = { present, absent };
+ 
+     try {
+       // Γ£à Logic Update: Save to Firebase instead of just local state
+-      await updateDutyAttendance(selectedDuty.id, attendanceData, summary);
++      await updateDutyAttendance(selectedDuty.id, attendanceData, summary, hpcData, ccData);
+       setShowAttendance(false);
+       setSelectedDuty(null);
+     } catch (error) {
+@@ -139,12 +144,12 @@ const FacultyDuties = ({ user }) => {
+                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold' }}>
+                   <Calendar size={18} color="#4f46e5" /> {duty.date}
+                 </div>
+-                <span style={{ 
+-                    fontSize: '11px', padding: '4px 10px', borderRadius: '20px', 
+-                    background: status === 'Completed' ? '#dcfce7' : '#e0e7ff',
+-                    color: status === 'Completed' ? '#166534' : '#4338ca', fontWeight: '700'
++                <span style={{
++                  fontSize: '11px', padding: '4px 10px', borderRadius: '20px',
++                  background: status === 'Completed' ? '#dcfce7' : '#e0e7ff',
++                  color: status === 'Completed' ? '#166534' : '#4338ca', fontWeight: '700'
+                 }}>
+-                    {status}
++                  {status}
+                 </span>
+               </div>
+ 
+@@ -156,11 +161,11 @@ const FacultyDuties = ({ user }) => {
+                     <p style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b' }}>{duty.rollRange || 'N/A'}</p>
+                   </div>
+                 </div>
+-                
++
+                 <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '15px', fontWeight: '500' }}>
+-                    {getYearFromExcel(duty)} | {duty.department} | {getDivisionFromExcel(duty)}
++                  {getYearFromExcel(duty)} | {duty.department} | {getDivisionFromExcel(duty)}
+                 </p>
+-                
++
+                 <div style={{ display: 'flex', gap: '15px' }}>
+                   <div style={{ flex: 1 }}>
+                     <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>TIME</p>
+@@ -190,27 +195,27 @@ const FacultyDuties = ({ user }) => {
+       {selectedDuty && (
+         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+           <div style={{ backgroundColor: 'white', width: showAttendance ? '850px' : '500px', padding: '30px', borderRadius: '24px', maxHeight: '90vh', overflowY: 'auto' }}>
+-            
++
+             {!showAttendance ? (
+               <>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '25px' }}>
+                   <h3 style={{ fontSize: '20px', fontWeight: 'bold' }}>Duty Details</h3>
+                   <button onClick={() => setSelectedDuty(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X /></button>
+                 </div>
+-                
++
+                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+-                    <DetailItem icon={<Calendar size={18}/>} label="Date" value={selectedDuty.date} />
+-                    <DetailItem icon={<Clock size={18}/>} label="Time" value={`${selectedDuty.startTime} - ${selectedDuty.endTime}`} />
+-                    <DetailItem icon={<MapPin size={18}/>} label="Room" value={selectedDuty.room} />
+-                    <DetailItem icon={<Users size={18}/>} label="Dept / Div / Year" value={`${selectedDuty.department} - ${getDivisionFromExcel(selectedDuty)} - ${getYearFromExcel(selectedDuty)}`} />
+-                    <DetailItem icon={<User size={18}/>} label="Roll Range" value={selectedDuty.rollRange} fullWidth />
++                  <DetailItem icon={<Calendar size={18} />} label="Date" value={selectedDuty.date} />
++                  <DetailItem icon={<Clock size={18} />} label="Time" value={`${selectedDuty.startTime} - ${selectedDuty.endTime}`} />
++                  <DetailItem icon={<MapPin size={18} />} label="Room" value={selectedDuty.room} />
++                  <DetailItem icon={<Users size={18} />} label="Dept / Div / Year" value={`${selectedDuty.department} - ${getDivisionFromExcel(selectedDuty)} - ${getYearFromExcel(selectedDuty)}`} />
++                  <DetailItem icon={<User size={18} />} label="Roll Range" value={selectedDuty.rollRange} fullWidth />
+                 </div>
+ 
+                 <div style={{ marginTop: '30px', display: 'flex', gap: '15px' }}>
+-                    <button onClick={() => setShowAttendance(true)} style={{ flex: 2, padding: '12px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}>
+-                        <FileSpreadsheet size={18}/> Mark Attendance
+-                    </button>
+-                    <button onClick={() => setSelectedDuty(null)} style={{ flex: 1, padding: '12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>Close</button>
++                  <button onClick={() => setShowAttendance(true)} style={{ flex: 2, padding: '12px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}>
++                    <FileSpreadsheet size={18} /> Mark Attendance
++                  </button>
++                  <button onClick={() => setSelectedDuty(null)} style={{ flex: 1, padding: '12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>Close</button>
+                 </div>
+               </>
+             ) : (
+@@ -227,6 +232,8 @@ const FacultyDuties = ({ user }) => {
+                         <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>Roll No</th>
+                         <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>Student Name</th>
+                         <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>Status</th>
++                        <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center', color: '#0ea5e9' }}>H/PC</th>
++                        <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center', color: '#f59e0b' }}>CC</th>
+                       </tr>
+                     </thead>
+                     <tbody>
+@@ -235,17 +242,40 @@ const FacultyDuties = ({ user }) => {
+                         return (
+                           <tr key={index} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                             <td style={{ padding: '12px', fontWeight: '600' }}>{roll}</td>
+-                            <td style={{ padding: '12px' }}>{stu['NAME'] || stu.name}</td>
++                            <td style={{ padding: '12px' }}>
++                              {stu['NAME'] || stu.name}
++                              {stu.isBuffer && <span style={{ marginLeft: '8px', background: '#f59e0b', color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>BUFFER</span>}
++                            </td>
+                             <td style={{ padding: '12px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
+-                              <button 
+-                                onClick={() => setAttendanceData({...attendanceData, [roll]: 'Present'})}
++                              <button
++                                onClick={() => setAttendanceData({ ...attendanceData, [roll]: 'Present' })}
+                                 style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #22c55e', background: attendanceData[roll] === 'Present' ? '#22c55e' : 'white', color: attendanceData[roll] === 'Present' ? 'white' : '#22c55e', cursor: 'pointer' }}
+                               >P</button>
+-                              <button 
+-                                onClick={() => setAttendanceData({...attendanceData, [roll]: 'Absent'})}
++                              <button
++                                onClick={() => setAttendanceData({ ...attendanceData, [roll]: 'Absent' })}
+                                 style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #ef4444', background: attendanceData[roll] === 'Absent' ? '#ef4444' : 'white', color: attendanceData[roll] === 'Absent' ? 'white' : '#ef4444', cursor: 'pointer' }}
+                               >A</button>
+                             </td>
++                            <td style={{ padding: '12px', textAlign: 'center' }}>
++                              <input
++                                type="radio"
++                                name={`hpc-${roll}`}
++                                checked={hpcData[roll] === true}
++                                onChange={() => setHpcData({ ...hpcData, [roll]: !hpcData[roll] })}
++                                onClick={() => hpcData[roll] && setHpcData({ ...hpcData, [roll]: false })}
++                                style={{ cursor: 'pointer', accentColor: '#0ea5e9', transform: 'scale(1.2)' }}
++                              />
++                            </td>
++                            <td style={{ padding: '12px', textAlign: 'center' }}>
++                              <input
++                                type="radio"
++                                name={`cc-${roll}`}
++                                checked={ccData[roll] === true}
++                                onChange={() => setCcData({ ...ccData, [roll]: !ccData[roll] })}
++                                onClick={() => ccData[roll] && setCcData({ ...ccData, [roll]: false })}
++                                style={{ cursor: 'pointer', accentColor: '#f59e0b', transform: 'scale(1.2)' }}
++                              />
++                            </td>
+                           </tr>
+                         );
+                       })}
+@@ -254,24 +284,24 @@ const FacultyDuties = ({ user }) => {
+                 </div>
+ 
+                 <div style={{ marginTop: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+-                  <button 
++                  <button
+                     onClick={handleMarkAllPresent}
+                     style={{ padding: '10px 20px', background: 'white', color: '#4f46e5', border: '1px solid #4f46e5', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}
+                   >Mark All Present</button>
+-                  
++
+                   <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                     <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
+                       <span style={{ color: '#22c55e' }}>P: {Object.values(attendanceData).filter(v => v === 'Present').length}</span>
+                       <span style={{ color: '#ef4444', marginLeft: '10px' }}>A: {Object.values(attendanceData).filter(v => v === 'Absent').length}</span>
+                     </div>
+-                    <button 
++                    <button
+                       disabled={!isAttendanceComplete()}
+                       onClick={handleAttendanceSubmit}
+-                      style={{ 
+-                        padding: '12px 40px', 
+-                        background: isAttendanceComplete() ? '#4f46e5' : '#cbd5e1', 
+-                        color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', 
+-                        cursor: isAttendanceComplete() ? 'pointer' : 'not-allowed' 
++                      style={{
++                        padding: '12px 40px',
++                        background: isAttendanceComplete() ? '#4f46e5' : '#cbd5e1',
++                        color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold',
++                        cursor: isAttendanceComplete() ? 'pointer' : 'not-allowed'
+                       }}
+                     >OK</button>
+                   </div>
+@@ -286,10 +316,10 @@ const FacultyDuties = ({ user }) => {
+ };
+ 
+ const DetailItem = ({ icon, label, value, fullWidth }) => (
+-    <div style={{ gridColumn: fullWidth ? '1 / -1' : 'auto' }}>
+-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px', color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>{icon} {label}</div>
+-        <div style={{ fontSize: '15px', fontWeight: '600', color: '#1e293b' }}>{value || 'N/A'}</div>
+-    </div>
++  <div style={{ gridColumn: fullWidth ? '1 / -1' : 'auto' }}>
++    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px', color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>{icon} {label}</div>
++    <div style={{ fontSize: '15px', fontWeight: '600', color: '#1e293b' }}>{value || 'N/A'}</div>
++  </div>
+ );
+ 
+ export default FacultyDuties;
+\ No newline at end of file
+diff --git a/src/pages/Home.jsx b/src/pages/Home.jsx
+index 0d38529..e635dfb 100644
+--- a/src/pages/Home.jsx
++++ b/src/pages/Home.jsx
+@@ -4,6 +4,15 @@ import { db } from '../firebase';
+ import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+ import { X, GraduationCap, ShieldCheck } from 'lucide-react';
+ 
++// Images
++import BannerImg from '../assets/images/Screenshot_26-2-2026_211927_tsdcmumbai.in.jpeg';
++import Campus1 from '../assets/images/TSEC-Building.jpeg';
++import Campus2 from '../assets/images/Screenshot_26-2-2026_231037_www.bing.com.jpeg';
++import Campus3 from '../assets/images/library.jpg';
++import Campus4 from '../assets/images/cc2.jpg';
++import Campus5 from '../assets/images/e-library.jpeg';
++import Campus6 from '../assets/images/smartclassroom.jpg';
++
+ const ADMIN_SECRET_KEY = "QC-ADMIN-2026"; // Hardcoded Admin Key
+ 
+ const Home = () => {
+@@ -56,7 +65,7 @@ const Home = () => {
+   };
+ 
+   return (
+-    <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
++    <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+       {/* NAVBAR */}
+       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 50px', backgroundColor: 'white', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', position: 'sticky', top: 0, zIndex: 50 }}>
+         <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#4f46e5', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => navigate('/')}>
+@@ -73,38 +82,36 @@ const Home = () => {
+       </nav>
+ 
+       {/* COLLEGE BANNER IMAGE */}
+-      <header style={{ width: '100%', backgroundColor: '#e2e8f0', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+-        {/* Replace the src with your actual college banner image path (e.g., "/college_banner.jpg") */}
++      <header style={{ width: '100%', backgroundColor: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px 0' }}>
+         <img
+-          src="https://placehold.co/1200x400/4f46e5/ffffff?text=ZSCT's+Thakur+Shyamnarayan+Degree+College+Banner"
++          src={BannerImg}
+           alt="ZSCT's Thakur Shyamnarayan Degree College Banner"
+-          style={{ width: '100%', maxHeight: '450px', objectFit: 'cover', display: 'block' }}
++          style={{ width: '90%', maxWidth: '1200px', maxHeight: '250px', objectFit: 'contain', display: 'block' }}
+         />
+       </header>
+ 
+       {/* PHOTO SCROLLING MARQUEE (Images only) */}
+-      <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', backgroundColor: '#f1f5f9', padding: '20px 0' }}>
+-        <div style={{ display: 'inline-block', animation: 'scrollLeft 30s linear infinite' }}>
+-          {/* Replace src with your actual event image URLs */}
+-          {[1, 2, 3, 4, 5, 6].map((num) => (
+-            <img key={num} src={`https://placehold.co/400x250/cbd5e1/475569?text=Campus+Photo+${num}`} alt={`Campus ${num}`} style={{ width: '300px', height: '200px', objectFit: 'cover', borderRadius: '12px', margin: '0 15px', display: 'inline-block', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }} />
++      <div style={{ flex: 1, display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap', backgroundColor: '#f1f5f9', padding: '40px 0' }}>
++        <div style={{ display: 'inline-block', animation: 'scrollLeft 40s linear infinite' }}>
++          {[Campus1, Campus2, Campus3, Campus4, Campus5, Campus6].map((imgSrc, idx) => (
++            <img key={idx} src={imgSrc} alt={`Campus ${idx + 1}`} style={{ width: '600px', height: '400px', objectFit: 'cover', borderRadius: '16px', margin: '0 20px', display: 'inline-block', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+           ))}
+           {/* Duplicated for seamless scrolling */}
+-          {[1, 2, 3, 4, 5, 6].map((num) => (
+-            <img key={`dup-${num}`} src={`https://placehold.co/400x250/cbd5e1/475569?text=Campus+Photo+${num}`} alt={`Campus ${num}`} style={{ width: '300px', height: '200px', objectFit: 'cover', borderRadius: '12px', margin: '0 15px', display: 'inline-block', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }} />
++          {[Campus1, Campus2, Campus3, Campus4, Campus5, Campus6].map((imgSrc, idx) => (
++            <img key={`dup-${idx}`} src={imgSrc} alt={`Campus ${idx + 1}`} style={{ width: '600px', height: '400px', objectFit: 'cover', borderRadius: '16px', margin: '0 20px', display: 'inline-block', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+           ))}
+         </div>
+       </div>
+ 
+-      {/* MENTOR MARQUEE (Repeated to fill blank space) */}
+-      <div style={{ backgroundColor: '#fef3c7', padding: '12px 0', borderBottom: '1px solid #fde68a', overflow: 'hidden', whiteSpace: 'nowrap' }}>
++      {/* FOOTER / MENTOR MARQUEE (Repeated to fill blank space) */}
++      <footer style={{ backgroundColor: '#fef3c7', padding: '16px 0', borderTop: '1px solid #fde68a', overflow: 'hidden', whiteSpace: 'nowrap', marginTop: 'auto' }}>
+         <div style={{ display: 'inline-block', animation: 'scrollLeft 20s linear infinite', color: '#b45309', fontWeight: '800', fontSize: '18px', letterSpacing: '1px' }}>
+-          Γ¡É PROJECT GUIDE & MENTOR: ASSISTANT PROFESSOR RAJESH RAJGOR Γ¡É &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+-          Γ¡É PROJECT GUIDE & MENTOR: ASSISTANT PROFESSOR RAJESH RAJGOR Γ¡É &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+-          Γ¡É PROJECT GUIDE & MENTOR: ASSISTANT PROFESSOR RAJESH RAJGOR Γ¡É &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+-          Γ¡É PROJECT GUIDE & MENTOR: ASSISTANT PROFESSOR RAJESH RAJGOR Γ¡É &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
++          Γ¡É GUIDE & MENTOR: ASSISTANT PROFESSOR RAJESH RAJGOR Γ¡É &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
++          Γ¡É GUIDE & MENTOR: ASSISTANT PROFESSOR RAJESH RAJGOR Γ¡É &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
++          Γ¡É GUIDE & MENTOR: ASSISTANT PROFESSOR RAJESH RAJGOR Γ¡É &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
++          Γ¡É GUIDE & MENTOR: ASSISTANT PROFESSOR RAJESH RAJGOR Γ¡É &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+         </div>
+-      </div>
++      </footer>
+ 
+       {/* SIGN UP MODAL */}
+       {showSignUp && (
+@@ -150,4 +157,4 @@ const inputStyle = {
+   width: '100%', padding: '12px 15px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', boxSizing: 'border-box'
+ };
+ 
+-export default Home;
++export default Home;
+\ No newline at end of file
+diff --git a/src/pages/ManageFaculty.jsx b/src/pages/ManageFaculty.jsx
+index 65f6a47..db5ef20 100644
+--- a/src/pages/ManageFaculty.jsx
++++ b/src/pages/ManageFaculty.jsx
+@@ -1,7 +1,7 @@
+ import React, { useState, useEffect, useRef } from 'react';
+-import { db } from '../firebase'; 
++import { db } from '../firebase';
+ import { collection, addDoc, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
+-import { Plus, Trash2, X, Loader2, AlertCircle, Upload } from 'lucide-react';
++import { Plus, Trash2, X, Loader2, AlertCircle, Upload, Download } from 'lucide-react';
+ import * as XLSX from 'xlsx';
+ 
+ const ManageFaculty = () => {
+@@ -10,7 +10,7 @@ const ManageFaculty = () => {
+   const [loading, setLoading] = useState(true);
+   const [creating, setCreating] = useState(false);
+   const [errorMsg, setErrorMsg] = useState('');
+-  
++
+   const fileInputRef = useRef(null);
+ 
+   const [formData, setFormData] = useState({
+@@ -76,7 +76,7 @@ const ManageFaculty = () => {
+         name: formData.name,
+         email: formData.email,
+         department: formData.department,
+-        password: formData.password, 
++        password: formData.password,
+         createdAt: new Date()
+       });
+       setFormData({ name: '', email: '', department: '', password: '', confirmPassword: '' });
+@@ -108,9 +108,9 @@ const ManageFaculty = () => {
+         let errorFound = false;
+ 
+         if (data.length === 0) {
+-            alert("Excel sheet is empty!");
+-            setCreating(false);
+-            return;
++          alert("Excel sheet is empty!");
++          setCreating(false);
++          return;
+         }
+ 
+         for (let i = 0; i < data.length; i++) {
+@@ -122,23 +122,23 @@ const ManageFaculty = () => {
+           const confirm = row['Confirm Password'];
+ 
+           if (!name || !email || !pass || !dept) {
+-             alert(`Row ${i + 1} is missing data. Check Name, Email, Department, and Password.`);
+-             errorFound = true;
+-             break;
++            alert(`Row ${i + 1} is missing data. Check Name, Email, Department, and Password.`);
++            errorFound = true;
++            break;
+           }
+ 
+           if (pass != confirm) {
+-             alert(`Password mismatch at Row ${i + 1} for user ${name}`);
+-             errorFound = true;
+-             break;
++            alert(`Password mismatch at Row ${i + 1} for user ${name}`);
++            errorFound = true;
++            break;
+           }
+ 
+           // Bulk Password Validation
+           const passErrors = validatePassword(pass);
+           if (passErrors.length > 0) {
+-             alert(`Row ${i + 1} Password for ${name} is weak. Missing: ${passErrors.join(", ")}`);
+-             errorFound = true;
+-             break;
++            alert(`Row ${i + 1} Password for ${name} is weak. Missing: ${passErrors.join(", ")}`);
++            errorFound = true;
++            break;
+           }
+ 
+           batchPromises.push(
+@@ -178,114 +178,147 @@ const ManageFaculty = () => {
+     }
+   };
+ 
++  // --- DOWNLOAD EXCEL LOGIC ---
++  const handleDownloadExcel = () => {
++    if (faculties.length === 0) {
++      alert("No faculty data to download.");
++      return;
++    }
++
++    // Format data for Excel
++    const excelData = faculties.map((fac) => ({
++      "Name": fac.name || "",
++      "Email ID": fac.email || "",
++      "Department": fac.department || "",
++      "Password": fac.password || ""
++    }));
++
++    // Create a new workbook and worksheet
++    const worksheet = XLSX.utils.json_to_sheet(excelData);
++    const workbook = XLSX.utils.book_new();
++    XLSX.utils.book_append_sheet(workbook, worksheet, "Faculties");
++
++    // Generate buffer and save file
++    XLSX.writeFile(workbook, "Faculty_List.xlsx");
++  };
++
+   return (
+     <div>
+       <div className="page-header">
+         <h2 className="page-title">Manage Faculty</h2>
+-        
+-        <div style={{display:'flex', gap:'10px'}}>
+-            <button 
+-            className="add-btn" 
++
++        <div style={{ display: 'flex', gap: '10px' }}>
++          <button
++            className="add-btn"
+             onClick={() => setShowForm(!showForm)}
+             disabled={creating}
+-            style={{backgroundColor: showForm ? '#dc2626' : '#4F46E5', opacity: creating ? 0.5 : 1}}
+-            >
+-            {showForm ? <><X size={18}/> Cancel</> : <><Plus size={18}/> Add Faculty</>}
+-            </button>
++            style={{ backgroundColor: showForm ? '#dc2626' : '#4F46E5', opacity: creating ? 0.5 : 1 }}
++          >
++            {showForm ? <><X size={18} /> Cancel</> : <><Plus size={18} /> Add Faculty</>}
++          </button>
+ 
+-            <button 
+-                className="add-btn"
+-                style={{backgroundColor: '#10b981', opacity: creating ? 0.5 : 1}}
+-                onClick={() => fileInputRef.current.click()}
+-                disabled={creating}
+-            >
+-                <Upload size={18} /> Add Bulk
+-            </button>
+-            
+-            <input 
+-                type="file" 
+-                ref={fileInputRef} 
+-                style={{display: 'none'}} 
+-                accept=".xlsx, .xls"
+-                onChange={handleBulkUpload}
+-            />
++          <button
++            className="add-btn"
++            style={{ backgroundColor: '#10b981', opacity: creating ? 0.5 : 1 }}
++            onClick={() => fileInputRef.current.click()}
++            disabled={creating}
++          >
++            <Upload size={18} /> Add Bulk
++          </button>
++
++          <button
++            className="add-btn"
++            style={{ backgroundColor: '#f59e0b', opacity: (faculties.length === 0 || creating) ? 0.5 : 1 }}
++            onClick={handleDownloadExcel}
++            disabled={faculties.length === 0 || creating}
++          >
++            <Download size={18} /> Export Excel
++          </button>
++
++          <input
++            type="file"
++            ref={fileInputRef}
++            style={{ display: 'none' }}
++            accept=".xlsx, .xls"
++            onChange={handleBulkUpload}
++          />
+         </div>
+       </div>
+ 
+       {errorMsg && (
+-        <div style={{padding: '1rem', background: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '1rem', display:'flex', alignItems:'center', gap:'10px'}}>
+-          <AlertCircle size={20}/>
++        <div style={{ padding: '1rem', background: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
++          <AlertCircle size={20} />
+           <strong>Database Issue:</strong> {errorMsg}
+         </div>
+       )}
+ 
+       {showForm && (
+         <div className="form-container">
+-            <h3 style={{marginTop: 0, marginBottom: '1.5rem'}}>Add New Faculty</h3>
+-            <form onSubmit={handleCreate}>
++          <h3 style={{ marginTop: 0, marginBottom: '1.5rem' }}>Add New Faculty</h3>
++          <form onSubmit={handleCreate}>
+             <div className="form-grid">
+-                <div>
++              <div>
+                 <label>Faculty Name</label>
+                 <input name="name" value={formData.name} onChange={handleChange} required placeholder="Dr. Name" />
+-                </div>
+-                <div>
++              </div>
++              <div>
+                 <label>Email ID</label>
+                 <input name="email" type="email" value={formData.email} onChange={handleChange} required placeholder="email@quickcampus.in" />
+-                </div>
+-                
+-                <div>
++              </div>
++
++              <div>
+                 <label>Department</label>
+                 <input name="department" value={formData.department} onChange={handleChange} required placeholder="e.g. CS, IT, Science" />
+-                </div>
++              </div>
+ 
+-                <div>
++              <div>
+                 <label>Password</label>
+                 <input name="password" type="password" value={formData.password} onChange={handleChange} required placeholder="1 Upper, 1 Lower, 1 Num, 1 Special" />
+-                </div>
+-                <div>
++              </div>
++              <div>
+                 <label>Confirm Password</label>
+                 <input name="confirmPassword" type="password" value={formData.confirmPassword} onChange={handleChange} required />
+-                </div>
++              </div>
+             </div>
+-            <button type="submit" className="add-btn" style={{width: '100%', justifyContent: 'center'}}>
+-                Create Faculty ID
++            <button type="submit" className="add-btn" style={{ width: '100%', justifyContent: 'center' }}>
++              Create Faculty ID
+             </button>
+-            </form>
++          </form>
+         </div>
+       )}
+ 
+       {creating && !showForm && (
+-        <div style={{ background:'white', padding:'2rem', borderRadius:'12px', marginBottom:'2rem', textAlign: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+-            <Loader2 className="animate-spin" size={48} color="#10b981" style={{margin:'0 auto', animation: 'spin 1s linear infinite'}} />
+-            <h3 style={{marginTop: '1rem', color: '#10b981'}}>Processing Data...</h3>
++        <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', marginBottom: '2rem', textAlign: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
++          <Loader2 className="animate-spin" size={48} color="#10b981" style={{ margin: '0 auto', animation: 'spin 1s linear infinite' }} />
++          <h3 style={{ marginTop: '1rem', color: '#10b981' }}>Processing Data...</h3>
+         </div>
+       )}
+ 
+       <div className="list-container">
+-        <div className="list-header" style={{gridTemplateColumns: '1.5fr 2fr 1.5fr 1fr 1fr'}}> 
++        <div className="list-header" style={{ gridTemplateColumns: '1.5fr 2fr 1.5fr 1fr 1fr' }}>
+           <div>Name</div>
+           <div>Email</div>
+-          <div>Department</div> 
++          <div>Department</div>
+           <div>Status</div>
+           <div>Action</div>
+         </div>
+ 
+         {loading ? (
+-          <div style={{padding: '2rem', textAlign: 'center'}}>
+-            <Loader2 className="animate-spin" style={{margin:'0 auto', animation: 'spin 1s linear infinite'}} />
+-            <p style={{marginTop: '0.5rem', color: '#6b7280'}}>Loading Data...</p>
++          <div style={{ padding: '2rem', textAlign: 'center' }}>
++            <Loader2 className="animate-spin" style={{ margin: '0 auto', animation: 'spin 1s linear infinite' }} />
++            <p style={{ marginTop: '0.5rem', color: '#6b7280' }}>Loading Data...</p>
+           </div>
+         ) : faculties.length === 0 ? (
+-          <div style={{padding: '2rem', textAlign: 'center', color: '#6b7280'}}>
++          <div style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>
+             No faculties found. Try adding one!
+           </div>
+         ) : (
+           faculties.map((fac) => (
+-            <div className="list-row" key={fac.id} style={{gridTemplateColumns: '1.5fr 2fr 1.5fr 1fr 1fr'}}>
+-              <div style={{fontWeight: 500}}>{fac.name}</div>
+-              <div style={{color: '#6b7280'}}>{fac.email}</div>
+-              <div style={{color: '#4f46e5', fontWeight: '500'}}>{fac.department || "N/A"}</div>
+-              <div><span style={{background:'#d1fae5', color:'#065f46', padding:'4px 8px', borderRadius:'4px', fontSize:'0.85rem'}}>Active</span></div>
++            <div className="list-row" key={fac.id} style={{ gridTemplateColumns: '1.5fr 2fr 1.5fr 1fr 1fr' }}>
++              <div style={{ fontWeight: 500 }}>{fac.name}</div>
++              <div style={{ color: '#6b7280' }}>{fac.email}</div>
++              <div style={{ color: '#4f46e5', fontWeight: '500' }}>{fac.department || "N/A"}</div>
++              <div><span style={{ background: '#d1fae5', color: '#065f46', padding: '4px 8px', borderRadius: '4px', fontSize: '0.85rem' }}>Active</span></div>
+               <div>
+                 <button className="delete-btn" onClick={() => handleDelete(fac.id)}>
+                   <Trash2 size={16} /> Delete
+diff --git a/src/utils/db.js b/src/utils/db.js
+index a5fc50d..1bdf26f 100644
+--- a/src/utils/db.js
++++ b/src/utils/db.js
+@@ -1,15 +1,15 @@
+-import { db } from '../firebase'; 
+-import { 
+-  collection, 
+-  addDoc, 
+-  doc, 
+-  updateDoc, 
++import { db } from '../firebase';
++import {
++  collection,
++  addDoc,
++  doc,
++  updateDoc,
+   deleteDoc,
+   query,
+   where,
+   orderBy,
+   limit,
+-  onSnapshot, 
++  onSnapshot,
+   getDocs,
+   writeBatch
+ } from 'firebase/firestore';
+@@ -53,17 +53,17 @@ export const updateNoticeStatus = async (docId, newStatus, refNo = null, reason
+   try {
+     const noticeRef = doc(db, "notices", docId);
+     const updateData = { status: newStatus };
+-    
++
+     if (newStatus === 'Approved' && refNo) {
+       updateData.refNo = refNo;
+       updateData.rejectionReason = null;
+     }
+-    
++
+     if (newStatus === 'Rejected' && reason) {
+       updateData.rejectionReason = reason;
+       updateData.refNo = null;
+     }
+-    
++
+     await updateDoc(noticeRef, updateData);
+   } catch (e) {
+     console.error("Error updating notice: ", e);
+@@ -97,7 +97,7 @@ export const subscribeToAllAllocations = (callback) => {
+ // One-time fetch helper
+ export const getAllExamAllocations = async () => {
+   try {
+-    const q = query(collection(db, "exam_allocations")); 
++    const q = query(collection(db, "exam_allocations"));
+     const snapshot = await getDocs(q);
+     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+   } catch (e) {
+@@ -190,7 +190,7 @@ export const saveAllocationHistory = async (historyData) => {
+ 
+ export const deleteAllocationBatch = async (batchId, historyId) => {
+   const batch = writeBatch(db);
+-  
++
+   // 1. Delete History Log
+   const historyRef = doc(db, "exam_history", historyId);
+   batch.delete(historyRef);
+@@ -207,7 +207,7 @@ export const deleteAllocationBatch = async (batchId, historyId) => {
+ 
+ export const clearAllAllocations = async () => {
+   const batch = writeBatch(db);
+-  
++
+   const historySnap = await getDocs(collection(db, "exam_history"));
+   historySnap.forEach(d => batch.delete(d.ref));
+ 
+@@ -216,13 +216,38 @@ export const clearAllAllocations = async () => {
+ 
+   await batch.commit();
+ };
++
++export const addBufferStudentToAllocation = async (batchId, roomNo, newStudentData) => {
++  try {
++    const q = query(collection(db, "exam_allocations"), where("batchId", "==", batchId), where("room", "==", roomNo));
++    const snapshot = await getDocs(q);
++    const dbBatch = writeBatch(db);
++
++    snapshot.docs.forEach((docSnap) => {
++      const data = docSnap.data();
++      const updatedStudents = [...(data.students || []), { ...newStudentData, isBuffer: true }];
++      dbBatch.update(docSnap.ref, {
++        students: updatedStudents,
++        studentCount: updatedStudents.length,
++        lastUpdated: new Date().toISOString()
++      });
++    });
++
++    await dbBatch.commit();
++  } catch (e) {
++    console.error("Error adding buffer student:", e);
++    throw e;
++  }
++};
+ // Γ£à Save Attendance to Firebase
+-export const updateDutyAttendance = async (docId, attendanceData, summary) => {
++export const updateDutyAttendance = async (docId, attendanceData, summary, hpcData = {}, ccData = {}) => {
+   try {
+     const docRef = doc(db, "exam_allocations", docId);
+     await updateDoc(docRef, {
+       attendanceData: attendanceData,
+       attendanceSummary: summary,
++      hpcData: hpcData,
++      ccData: ccData,
+       lastUpdated: new Date().toISOString()
+     });
+   } catch (e) {
+@@ -283,7 +308,7 @@ export const saveNoticeWithRef = async (noticeData, isAdmin) => {
+       // 1. Get current settings
+       const settingsRef = doc(db, "settings", "notice_config");
+       const settingsSnap = await getDocs(query(collection(db, "settings")));
+-      
++
+       let current = 1;
+       let prefix = "TSDC/NT";
+ 
+@@ -296,14 +321,14 @@ export const saveNoticeWithRef = async (noticeData, isAdmin) => {
+       // 2. Generate Final Ref No
+       const year = new Date().getFullYear();
+       const finalRef = `${prefix}/${current}/${year}`;
+-      
++
+       finalData.refNo = finalRef;
+ 
+       // 3. Increment the counter in DB for the next notice
+       await updateDoc(settingsRef, { currentRef: current + 1 });
+     } else {
+       // If Faculty is creating, keep the placeholder
+-      finalData.refNo = "___"; 
++      finalData.refNo = "___";
+     }
+ 
+     const docRef = await addDoc(collection(db, "notices"), finalData);

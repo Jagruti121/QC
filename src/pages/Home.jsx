@@ -4,6 +4,15 @@ import { db } from '../firebase';
 import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 import { X, GraduationCap, ShieldCheck } from 'lucide-react';
 
+// Images
+import BannerImg from '../assets/images/Screenshot_26-2-2026_211927_tsdcmumbai.in.jpeg';
+import Campus1 from '../assets/images/TSEC-Building.jpeg';
+import Campus2 from '../assets/images/Screenshot_26-2-2026_231037_www.bing.com.jpeg';
+import Campus3 from '../assets/images/library.jpg';
+import Campus4 from '../assets/images/cc2.jpg';
+import Campus5 from '../assets/images/e-library.jpeg';
+import Campus6 from '../assets/images/smartclassroom.jpg';
+
 const ADMIN_SECRET_KEY = "QC-ADMIN-2026"; // Hardcoded Admin Key
 
 const Home = () => {
@@ -56,7 +65,7 @@ const Home = () => {
   };
 
   return (
-    <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
+    <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* NAVBAR */}
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 50px', backgroundColor: 'white', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', position: 'sticky', top: 0, zIndex: 50 }}>
         <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#4f46e5', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => navigate('/')}>
@@ -73,38 +82,36 @@ const Home = () => {
       </nav>
 
       {/* COLLEGE BANNER IMAGE */}
-      <header style={{ width: '100%', backgroundColor: '#e2e8f0', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        {/* Replace the src with your actual college banner image path (e.g., "/college_banner.jpg") */}
+      <header style={{ width: '100%', backgroundColor: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px 0' }}>
         <img
-          src="https://placehold.co/1200x400/4f46e5/ffffff?text=ZSCT's+Thakur+Shyamnarayan+Degree+College+Banner"
+          src={BannerImg}
           alt="ZSCT's Thakur Shyamnarayan Degree College Banner"
-          style={{ width: '100%', maxHeight: '450px', objectFit: 'cover', display: 'block' }}
+          style={{ width: '90%', maxWidth: '1200px', maxHeight: '250px', objectFit: 'contain', display: 'block' }}
         />
       </header>
 
       {/* PHOTO SCROLLING MARQUEE (Images only) */}
-      <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', backgroundColor: '#f1f5f9', padding: '20px 0' }}>
-        <div style={{ display: 'inline-block', animation: 'scrollLeft 30s linear infinite' }}>
-          {/* Replace src with your actual event image URLs */}
-          {[1, 2, 3, 4, 5, 6].map((num) => (
-            <img key={num} src={`https://placehold.co/400x250/cbd5e1/475569?text=Campus+Photo+${num}`} alt={`Campus ${num}`} style={{ width: '300px', height: '200px', objectFit: 'cover', borderRadius: '12px', margin: '0 15px', display: 'inline-block', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }} />
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap', backgroundColor: '#f1f5f9', padding: '40px 0' }}>
+        <div style={{ display: 'inline-block', animation: 'scrollLeft 40s linear infinite' }}>
+          {[Campus1, Campus2, Campus3, Campus4, Campus5, Campus6].map((imgSrc, idx) => (
+            <img key={idx} src={imgSrc} alt={`Campus ${idx + 1}`} style={{ width: '600px', height: '400px', objectFit: 'cover', borderRadius: '16px', margin: '0 20px', display: 'inline-block', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
           ))}
           {/* Duplicated for seamless scrolling */}
-          {[1, 2, 3, 4, 5, 6].map((num) => (
-            <img key={`dup-${num}`} src={`https://placehold.co/400x250/cbd5e1/475569?text=Campus+Photo+${num}`} alt={`Campus ${num}`} style={{ width: '300px', height: '200px', objectFit: 'cover', borderRadius: '12px', margin: '0 15px', display: 'inline-block', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }} />
+          {[Campus1, Campus2, Campus3, Campus4, Campus5, Campus6].map((imgSrc, idx) => (
+            <img key={`dup-${idx}`} src={imgSrc} alt={`Campus ${idx + 1}`} style={{ width: '600px', height: '400px', objectFit: 'cover', borderRadius: '16px', margin: '0 20px', display: 'inline-block', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
           ))}
         </div>
       </div>
 
-      {/* MENTOR MARQUEE (Repeated to fill blank space) */}
-      <div style={{ backgroundColor: '#fef3c7', padding: '12px 0', borderBottom: '1px solid #fde68a', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+      {/* FOOTER / MENTOR MARQUEE (Repeated to fill blank space) */}
+      <footer style={{ backgroundColor: '#fef3c7', padding: '16px 0', borderTop: '1px solid #fde68a', overflow: 'hidden', whiteSpace: 'nowrap', marginTop: 'auto' }}>
         <div style={{ display: 'inline-block', animation: 'scrollLeft 20s linear infinite', color: '#b45309', fontWeight: '800', fontSize: '18px', letterSpacing: '1px' }}>
-          ⭐ PROJECT GUIDE & MENTOR: ASSISTANT PROFESSOR RAJESH RAJGOR ⭐ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-          ⭐ PROJECT GUIDE & MENTOR: ASSISTANT PROFESSOR RAJESH RAJGOR ⭐ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-          ⭐ PROJECT GUIDE & MENTOR: ASSISTANT PROFESSOR RAJESH RAJGOR ⭐ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-          ⭐ PROJECT GUIDE & MENTOR: ASSISTANT PROFESSOR RAJESH RAJGOR ⭐ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+          ⭐ GUIDE & MENTOR: ASSISTANT PROFESSOR RAJESH RAJGOR ⭐ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+          ⭐ GUIDE & MENTOR: ASSISTANT PROFESSOR RAJESH RAJGOR ⭐ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+          ⭐ GUIDE & MENTOR: ASSISTANT PROFESSOR RAJESH RAJGOR ⭐ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+          ⭐ GUIDE & MENTOR: ASSISTANT PROFESSOR RAJESH RAJGOR ⭐ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
         </div>
-      </div>
+      </footer>
 
       {/* SIGN UP MODAL */}
       {showSignUp && (

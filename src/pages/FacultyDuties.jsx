@@ -1,35 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Calendar, Clock, MapPin, CheckCircle, ClipboardList, User, Users, X, Info, Search, FileSpreadsheet, Check, Minus 
+import {
+  Calendar, Clock, MapPin, CheckCircle, ClipboardList, User, Users, X, Info, Search, FileSpreadsheet, Check, Minus
 } from 'lucide-react';
 // Import the update function
-import { subscribeToAllAllocations, updateDutyAttendance } from '../utils/db'; 
+import { subscribeToAllAllocations, updateDutyAttendance } from '../utils/db';
 
 const FacultyDuties = ({ user }) => {
   const [duties, setDuties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDuty, setSelectedDuty] = useState(null);
   const [showAttendance, setShowAttendance] = useState(false);
-  const [attendanceData, setAttendanceData] = useState({}); 
+  const [attendanceData, setAttendanceData] = useState({});
+  const [hpcData, setHpcData] = useState({});
+  const [ccData, setCcData] = useState({});
 
   useEffect(() => {
     const myEmail = user?.email ? user.email.toLowerCase().trim() : "";
     const myName = user?.name ? user.name.toLowerCase().trim() : "";
-    
+
     const cleanName = (str) => {
-        if (!str) return "";
-        return str.toLowerCase()
-            .replace(/dr\.|mr\.|mrs\.|prof\.|asst\./g, "")
-            .replace(/[^a-z0-9]/g, "");
+      if (!str) return "";
+      return str.toLowerCase()
+        .replace(/dr\.|mr\.|mrs\.|prof\.|asst\./g, "")
+        .replace(/[^a-z0-9]/g, "");
     };
 
     const myCleanName = cleanName(myName);
 
     const unsubscribe = subscribeToAllAllocations((allAllocations) => {
       const myDuties = allAllocations.filter(alloc => {
-          if (alloc.facultyEmail && alloc.facultyEmail.toLowerCase().trim() === myEmail) return true;
-          const dbCleanName = cleanName(alloc.facultyName || "");
-          return dbCleanName && (dbCleanName.includes(myCleanName) || myCleanName.includes(dbCleanName));
+        if (alloc.facultyEmail && alloc.facultyEmail.toLowerCase().trim() === myEmail) return true;
+        const dbCleanName = cleanName(alloc.facultyName || "");
+        return dbCleanName && (dbCleanName.includes(myCleanName) || myCleanName.includes(dbCleanName));
       });
 
       myDuties.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -40,12 +42,15 @@ const FacultyDuties = ({ user }) => {
     return () => unsubscribe();
   }, [user]);
 
-  // Load existing attendance data when a duty is selected
   useEffect(() => {
     if (selectedDuty) {
       setAttendanceData(selectedDuty.attendanceData || {});
+      setHpcData(selectedDuty.hpcData || {});
+      setCcData(selectedDuty.ccData || {});
     } else {
       setAttendanceData({});
+      setHpcData({});
+      setCcData({});
       setShowAttendance(false);
     }
   }, [selectedDuty]);
@@ -54,24 +59,24 @@ const FacultyDuties = ({ user }) => {
 
   const getStatus = (dateStr, endTimeStr) => {
     try {
-        const now = new Date();
-        const [year, month, day] = dateStr.split('-').map(Number);
-        let [time, modifier] = endTimeStr.split(' ');
-        let [hours, minutes] = time.split(':').map(Number);
-        if (modifier === 'PM' && hours < 12) hours += 12;
-        if (modifier === 'AM' && hours === 12) hours = 0;
-        const examEnd = new Date(year, month - 1, day, hours, minutes);
-        return now > examEnd ? "Completed" : "Assigned";
+      const now = new Date();
+      const [year, month, day] = dateStr.split('-').map(Number);
+      let [time, modifier] = endTimeStr.split(' ');
+      let [hours, minutes] = time.split(':').map(Number);
+      if (modifier === 'PM' && hours < 12) hours += 12;
+      if (modifier === 'AM' && hours === 12) hours = 0;
+      const examEnd = new Date(year, month - 1, day, hours, minutes);
+      return now > examEnd ? "Completed" : "Assigned";
     } catch (e) {
-        return "Assigned";
+      return "Assigned";
     }
   };
 
   const handleMarkAllPresent = () => {
     const newData = {};
     selectedDuty.students?.forEach(stu => {
-        const roll = stu['ROLL NO'] || stu.roll;
-        newData[roll] = 'Present';
+      const roll = stu['ROLL NO'] || stu.roll;
+      newData[roll] = 'Present';
     });
     setAttendanceData(prev => ({ ...prev, ...newData }));
   };
@@ -79,21 +84,21 @@ const FacultyDuties = ({ user }) => {
   const isAttendanceComplete = () => {
     if (!selectedDuty?.students) return false;
     return selectedDuty.students.every(stu => {
-        const roll = stu['ROLL NO'] || stu.roll;
-        return attendanceData[roll] === 'Present' || attendanceData[roll] === 'Absent';
+      const roll = stu['ROLL NO'] || stu.roll;
+      return attendanceData[roll] === 'Present' || attendanceData[roll] === 'Absent';
     });
   };
 
   const handleAttendanceSubmit = async () => {
     if (!isAttendanceComplete()) return;
-    
+
     const present = Object.values(attendanceData).filter(v => v === 'Present').length;
     const absent = Object.values(attendanceData).filter(v => v === 'Absent').length;
     const summary = { present, absent };
 
     try {
       // ✅ Logic Update: Save to Firebase instead of just local state
-      await updateDutyAttendance(selectedDuty.id, attendanceData, summary);
+      await updateDutyAttendance(selectedDuty.id, attendanceData, summary, hpcData, ccData);
       setShowAttendance(false);
       setSelectedDuty(null);
     } catch (error) {
@@ -139,12 +144,12 @@ const FacultyDuties = ({ user }) => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold' }}>
                   <Calendar size={18} color="#4f46e5" /> {duty.date}
                 </div>
-                <span style={{ 
-                    fontSize: '11px', padding: '4px 10px', borderRadius: '20px', 
-                    background: status === 'Completed' ? '#dcfce7' : '#e0e7ff',
-                    color: status === 'Completed' ? '#166534' : '#4338ca', fontWeight: '700'
+                <span style={{
+                  fontSize: '11px', padding: '4px 10px', borderRadius: '20px',
+                  background: status === 'Completed' ? '#dcfce7' : '#e0e7ff',
+                  color: status === 'Completed' ? '#166534' : '#4338ca', fontWeight: '700'
                 }}>
-                    {status}
+                  {status}
                 </span>
               </div>
 
@@ -156,11 +161,11 @@ const FacultyDuties = ({ user }) => {
                     <p style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b' }}>{duty.rollRange || 'N/A'}</p>
                   </div>
                 </div>
-                
+
                 <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '15px', fontWeight: '500' }}>
-                    {getYearFromExcel(duty)} | {duty.department} | {getDivisionFromExcel(duty)}
+                  {getYearFromExcel(duty)} | {duty.department} | {getDivisionFromExcel(duty)}
                 </p>
-                
+
                 <div style={{ display: 'flex', gap: '15px' }}>
                   <div style={{ flex: 1 }}>
                     <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>TIME</p>
@@ -190,27 +195,27 @@ const FacultyDuties = ({ user }) => {
       {selectedDuty && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: 'white', width: showAttendance ? '850px' : '500px', padding: '30px', borderRadius: '24px', maxHeight: '90vh', overflowY: 'auto' }}>
-            
+
             {!showAttendance ? (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '25px' }}>
                   <h3 style={{ fontSize: '20px', fontWeight: 'bold' }}>Duty Details</h3>
                   <button onClick={() => setSelectedDuty(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X /></button>
                 </div>
-                
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                    <DetailItem icon={<Calendar size={18}/>} label="Date" value={selectedDuty.date} />
-                    <DetailItem icon={<Clock size={18}/>} label="Time" value={`${selectedDuty.startTime} - ${selectedDuty.endTime}`} />
-                    <DetailItem icon={<MapPin size={18}/>} label="Room" value={selectedDuty.room} />
-                    <DetailItem icon={<Users size={18}/>} label="Dept / Div / Year" value={`${selectedDuty.department} - ${getDivisionFromExcel(selectedDuty)} - ${getYearFromExcel(selectedDuty)}`} />
-                    <DetailItem icon={<User size={18}/>} label="Roll Range" value={selectedDuty.rollRange} fullWidth />
+                  <DetailItem icon={<Calendar size={18} />} label="Date" value={selectedDuty.date} />
+                  <DetailItem icon={<Clock size={18} />} label="Time" value={`${selectedDuty.startTime} - ${selectedDuty.endTime}`} />
+                  <DetailItem icon={<MapPin size={18} />} label="Room" value={selectedDuty.room} />
+                  <DetailItem icon={<Users size={18} />} label="Dept / Div / Year" value={`${selectedDuty.department} - ${getDivisionFromExcel(selectedDuty)} - ${getYearFromExcel(selectedDuty)}`} />
+                  <DetailItem icon={<User size={18} />} label="Roll Range" value={selectedDuty.rollRange} fullWidth />
                 </div>
 
                 <div style={{ marginTop: '30px', display: 'flex', gap: '15px' }}>
-                    <button onClick={() => setShowAttendance(true)} style={{ flex: 2, padding: '12px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}>
-                        <FileSpreadsheet size={18}/> Mark Attendance
-                    </button>
-                    <button onClick={() => setSelectedDuty(null)} style={{ flex: 1, padding: '12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>Close</button>
+                  <button onClick={() => setShowAttendance(true)} style={{ flex: 2, padding: '12px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <FileSpreadsheet size={18} /> Mark Attendance
+                  </button>
+                  <button onClick={() => setSelectedDuty(null)} style={{ flex: 1, padding: '12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>Close</button>
                 </div>
               </>
             ) : (
@@ -227,6 +232,8 @@ const FacultyDuties = ({ user }) => {
                         <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>Roll No</th>
                         <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>Student Name</th>
                         <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>Status</th>
+                        <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center', color: '#0ea5e9' }}>H/PC</th>
+                        <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center', color: '#f59e0b' }}>CC</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -235,16 +242,39 @@ const FacultyDuties = ({ user }) => {
                         return (
                           <tr key={index} style={{ borderBottom: '1px solid #f1f5f9' }}>
                             <td style={{ padding: '12px', fontWeight: '600' }}>{roll}</td>
-                            <td style={{ padding: '12px' }}>{stu['NAME'] || stu.name}</td>
+                            <td style={{ padding: '12px' }}>
+                              {stu['NAME'] || stu.name}
+                              {stu.isBuffer && <span style={{ marginLeft: '8px', background: '#f59e0b', color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>BUFFER</span>}
+                            </td>
                             <td style={{ padding: '12px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
-                              <button 
-                                onClick={() => setAttendanceData({...attendanceData, [roll]: 'Present'})}
+                              <button
+                                onClick={() => setAttendanceData({ ...attendanceData, [roll]: 'Present' })}
                                 style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #22c55e', background: attendanceData[roll] === 'Present' ? '#22c55e' : 'white', color: attendanceData[roll] === 'Present' ? 'white' : '#22c55e', cursor: 'pointer' }}
                               >P</button>
-                              <button 
-                                onClick={() => setAttendanceData({...attendanceData, [roll]: 'Absent'})}
+                              <button
+                                onClick={() => setAttendanceData({ ...attendanceData, [roll]: 'Absent' })}
                                 style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #ef4444', background: attendanceData[roll] === 'Absent' ? '#ef4444' : 'white', color: attendanceData[roll] === 'Absent' ? 'white' : '#ef4444', cursor: 'pointer' }}
                               >A</button>
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'center' }}>
+                              <input
+                                type="radio"
+                                name={`hpc-${roll}`}
+                                checked={hpcData[roll] === true}
+                                onChange={() => setHpcData({ ...hpcData, [roll]: !hpcData[roll] })}
+                                onClick={() => hpcData[roll] && setHpcData({ ...hpcData, [roll]: false })}
+                                style={{ cursor: 'pointer', accentColor: '#0ea5e9', transform: 'scale(1.2)' }}
+                              />
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'center' }}>
+                              <input
+                                type="radio"
+                                name={`cc-${roll}`}
+                                checked={ccData[roll] === true}
+                                onChange={() => setCcData({ ...ccData, [roll]: !ccData[roll] })}
+                                onClick={() => ccData[roll] && setCcData({ ...ccData, [roll]: false })}
+                                style={{ cursor: 'pointer', accentColor: '#f59e0b', transform: 'scale(1.2)' }}
+                              />
                             </td>
                           </tr>
                         );
@@ -254,24 +284,24 @@ const FacultyDuties = ({ user }) => {
                 </div>
 
                 <div style={{ marginTop: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <button 
+                  <button
                     onClick={handleMarkAllPresent}
                     style={{ padding: '10px 20px', background: 'white', color: '#4f46e5', border: '1px solid #4f46e5', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}
                   >Mark All Present</button>
-                  
+
                   <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
                     <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
                       <span style={{ color: '#22c55e' }}>P: {Object.values(attendanceData).filter(v => v === 'Present').length}</span>
                       <span style={{ color: '#ef4444', marginLeft: '10px' }}>A: {Object.values(attendanceData).filter(v => v === 'Absent').length}</span>
                     </div>
-                    <button 
+                    <button
                       disabled={!isAttendanceComplete()}
                       onClick={handleAttendanceSubmit}
-                      style={{ 
-                        padding: '12px 40px', 
-                        background: isAttendanceComplete() ? '#4f46e5' : '#cbd5e1', 
-                        color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', 
-                        cursor: isAttendanceComplete() ? 'pointer' : 'not-allowed' 
+                      style={{
+                        padding: '12px 40px',
+                        background: isAttendanceComplete() ? '#4f46e5' : '#cbd5e1',
+                        color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold',
+                        cursor: isAttendanceComplete() ? 'pointer' : 'not-allowed'
                       }}
                     >OK</button>
                   </div>
@@ -286,10 +316,10 @@ const FacultyDuties = ({ user }) => {
 };
 
 const DetailItem = ({ icon, label, value, fullWidth }) => (
-    <div style={{ gridColumn: fullWidth ? '1 / -1' : 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px', color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>{icon} {label}</div>
-        <div style={{ fontSize: '15px', fontWeight: '600', color: '#1e293b' }}>{value || 'N/A'}</div>
-    </div>
+  <div style={{ gridColumn: fullWidth ? '1 / -1' : 'auto' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px', color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>{icon} {label}</div>
+    <div style={{ fontSize: '15px', fontWeight: '600', color: '#1e293b' }}>{value || 'N/A'}</div>
+  </div>
 );
 
 export default FacultyDuties;

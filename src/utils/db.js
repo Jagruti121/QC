@@ -1,15 +1,15 @@
-import { db } from '../firebase'; 
-import { 
-  collection, 
-  addDoc, 
-  doc, 
-  updateDoc, 
+import { db } from '../firebase';
+import {
+  collection,
+  addDoc,
+  doc,
+  updateDoc,
   deleteDoc,
   query,
   where,
   orderBy,
   limit,
-  onSnapshot, 
+  onSnapshot,
   getDocs,
   writeBatch
 } from 'firebase/firestore';
@@ -53,17 +53,17 @@ export const updateNoticeStatus = async (docId, newStatus, refNo = null, reason 
   try {
     const noticeRef = doc(db, "notices", docId);
     const updateData = { status: newStatus };
-    
+
     if (newStatus === 'Approved' && refNo) {
       updateData.refNo = refNo;
       updateData.rejectionReason = null;
     }
-    
+
     if (newStatus === 'Rejected' && reason) {
       updateData.rejectionReason = reason;
       updateData.refNo = null;
     }
-    
+
     await updateDoc(noticeRef, updateData);
   } catch (e) {
     console.error("Error updating notice: ", e);
@@ -97,7 +97,7 @@ export const subscribeToAllAllocations = (callback) => {
 // One-time fetch helper
 export const getAllExamAllocations = async () => {
   try {
-    const q = query(collection(db, "exam_allocations")); 
+    const q = query(collection(db, "exam_allocations"));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   } catch (e) {
@@ -190,7 +190,7 @@ export const saveAllocationHistory = async (historyData) => {
 
 export const deleteAllocationBatch = async (batchId, historyId) => {
   const batch = writeBatch(db);
-  
+
   // 1. Delete History Log
   const historyRef = doc(db, "exam_history", historyId);
   batch.delete(historyRef);
@@ -207,7 +207,7 @@ export const deleteAllocationBatch = async (batchId, historyId) => {
 
 export const clearAllAllocations = async () => {
   const batch = writeBatch(db);
-  
+
   const historySnap = await getDocs(collection(db, "exam_history"));
   historySnap.forEach(d => batch.delete(d.ref));
 
@@ -216,13 +216,56 @@ export const clearAllAllocations = async () => {
 
   await batch.commit();
 };
+
+export const addBufferStudentToAllocation = async (batchId, roomNo, newStudentData, selectedDates = []) => {
+  try {
+    const q = query(collection(db, "exam_allocations"), where("batchId", "==", batchId), where("room", "==", roomNo));
+    const snapshot = await getDocs(q);
+    const dbBatch = writeBatch(db);
+    let addedCount = 0;
+
+    snapshot.docs.forEach((docSnap) => {
+      const data = docSnap.data();
+      // If dates were provided, only add buffer student if this specific alloc is on that date
+      if (selectedDates.length > 0 && !selectedDates.includes(data.date)) {
+        return;
+      }
+      addedCount++;
+      const updatedStudents = [...(data.students || []), { ...newStudentData, isBuffer: true }];
+      dbBatch.update(docSnap.ref, {
+        students: updatedStudents,
+        studentCount: updatedStudents.length,
+        lastUpdated: new Date().toISOString()
+      });
+    });
+
+    if (addedCount > 0) {
+      const hq = query(collection(db, "exam_history"), where("batchId", "==", batchId));
+      const hSnap = await getDocs(hq);
+      hSnap.docs.forEach((hDoc) => {
+        const hData = hDoc.data();
+        dbBatch.update(hDoc.ref, {
+          hasBuffer: true,
+          studentCount: (hData.studentCount || 0) + addedCount
+        });
+      });
+    }
+
+    await dbBatch.commit();
+  } catch (e) {
+    console.error("Error adding buffer student:", e);
+    throw e;
+  }
+};
 // ✅ Save Attendance to Firebase
-export const updateDutyAttendance = async (docId, attendanceData, summary) => {
+export const updateDutyAttendance = async (docId, attendanceData, summary, hpcData = {}, ccData = {}) => {
   try {
     const docRef = doc(db, "exam_allocations", docId);
     await updateDoc(docRef, {
       attendanceData: attendanceData,
       attendanceSummary: summary,
+      hpcData: hpcData,
+      ccData: ccData,
       lastUpdated: new Date().toISOString()
     });
   } catch (e) {
@@ -283,7 +326,7 @@ export const saveNoticeWithRef = async (noticeData, isAdmin) => {
       // 1. Get current settings
       const settingsRef = doc(db, "settings", "notice_config");
       const settingsSnap = await getDocs(query(collection(db, "settings")));
-      
+
       let current = 1;
       let prefix = "TSDC/NT";
 
@@ -296,14 +339,14 @@ export const saveNoticeWithRef = async (noticeData, isAdmin) => {
       // 2. Generate Final Ref No
       const year = new Date().getFullYear();
       const finalRef = `${prefix}/${current}/${year}`;
-      
+
       finalData.refNo = finalRef;
 
       // 3. Increment the counter in DB for the next notice
       await updateDoc(settingsRef, { currentRef: current + 1 });
     } else {
       // If Faculty is creating, keep the placeholder
-      finalData.refNo = "___"; 
+      finalData.refNo = "___";
     }
 
     const docRef = await addDoc(collection(db, "notices"), finalData);

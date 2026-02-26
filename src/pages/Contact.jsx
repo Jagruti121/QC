@@ -35,7 +35,7 @@ const Contact = () => {
                             <h3 style={{ margin: '5px 0', fontSize: '22px', color: '#1e293b' }}>Jagruti Rajan Morvekar</h3>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#4f46e5', fontWeight: 'bold', fontSize: '18px' }}>
-                            <Phone size={20} /> [Add Number Here]
+                            <Phone size={20} /> [+91 93216 32938]
                         </div>
                     </div>
 
@@ -46,7 +46,7 @@ const Contact = () => {
                             <h3 style={{ margin: '5px 0', fontSize: '22px', color: '#1e293b' }}>Om Chandrashekhar Murkar</h3>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#4f46e5', fontWeight: 'bold', fontSize: '18px' }}>
-                            <Phone size={20} /> 913623409
+                            <Phone size={20} /> [+91 91362 34409]
                         </div>
                     </div>
 
@@ -57,7 +57,7 @@ const Contact = () => {
                             <h3 style={{ margin: '5px 0', fontSize: '22px', color: '#312e81' }}>Asst. Prof. Rajesh Rajgor</h3>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#4338ca', fontWeight: 'bold', fontSize: '18px' }}>
-                            <Phone size={20} /> [Add Number Here]
+                            <Phone size={20} /> [+91 99677 46143]
                         </div>
                     </div>
 

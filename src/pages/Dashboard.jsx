@@ -17,7 +17,7 @@
 // //   // Pull 'loading' from AuthContext to handle manual reloads
 // //   const { user, logout, loading } = useAuth(); 
 // //   const navigate = useNavigate();
-  
+
 // //   const [currentUser, setCurrentUser] = useState(null);
 // //   const [activePage, setActivePage] = useState('');
 
@@ -150,7 +150,7 @@
 //   // Pull 'loading' from AuthContext to handle manual reloads
 //   const { user, logout, loading } = useAuth(); 
 //   const navigate = useNavigate();
-  
+
 //   const [currentUser, setCurrentUser] = useState(null);
 //   const [activePage, setActivePage] = useState('');
 
@@ -271,9 +271,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext'; 
-import { 
-  Users, LayoutDashboard, FileText, CheckCircle, Clock, LogOut, ClipboardList, 
+import { useAuth } from '../context/AuthContext';
+import {
+  Users, LayoutDashboard, FileText, CheckCircle, Clock, LogOut, ClipboardList,
   ClipboardCheck, Settings as SettingsIcon // Added Settings icon
 } from 'lucide-react';
 
@@ -283,14 +283,14 @@ import ExamAllocation from './ExamAllocation';
 import NoticeCreator from './NoticeCreator';
 import Approvals from './Approvals';
 import NoticeHistory from './NoticeHistory';
-import FacultyDuties from './FacultyDuties'; 
-import AttendanceControl from './AttendanceControl'; 
+import FacultyDuties from './FacultyDuties';
+import AttendanceControl from './AttendanceControl';
 import Settings from './Settings'; // Import the new Settings component
 
 const Dashboard = () => {
-  const { user, logout, loading } = useAuth(); 
+  const { user, logout, loading } = useAuth();
   const navigate = useNavigate();
-  
+
   const [currentUser, setCurrentUser] = useState(null);
   const [activePage, setActivePage] = useState('');
 
@@ -303,7 +303,10 @@ const Dashboard = () => {
 
     if (user) {
       setCurrentUser({ name: user.displayName || 'Admin', role: 'Admin', email: user.email });
-      if (!activePage) setActivePage('manage-faculty'); 
+      if (!activePage) setActivePage('manage-faculty');
+    } else if (storedRole === 'Admin' && storedEmail) {
+      setCurrentUser({ name: storedName || 'Admin', role: 'Admin', email: storedEmail });
+      if (!activePage) setActivePage('manage-faculty');
     } else if (storedRole === 'Faculty' && storedEmail) {
       setCurrentUser({ name: storedName, role: 'Faculty', email: storedEmail });
       if (!activePage) setActivePage('duties');
@@ -330,7 +333,7 @@ const Dashboard = () => {
         <div className="brand-section">
           <h1 className="brand-name">Quick Campus</h1>
           <p className="text-xs text-gray-500 mt-2 font-medium">
-            {currentUser.name} <br/>
+            {currentUser.name} <br />
             <span className="text-indigo-600">({currentUser.role})</span>
           </p>
         </div>
@@ -372,7 +375,7 @@ const Dashboard = () => {
               <button className={`nav-item ${activePage === 'history' ? 'active' : ''}`} onClick={() => setActivePage('history')}>
                 <Clock size={20} /> Notice History
               </button>
-              
+
               {/* NEW SETTINGS TAB - Placed below Notice History */}
               <button className={`nav-item ${activePage === 'settings' ? 'active' : ''}`} onClick={() => setActivePage('settings')}>
                 <SettingsIcon size={20} /> Settings
@@ -395,7 +398,7 @@ const Dashboard = () => {
         {activePage === 'notices' && <NoticeCreator user={currentUser} />}
         {activePage === 'approvals' && <Approvals />}
         {activePage === 'history' && <NoticeHistory user={currentUser} />}
-        
+
         {/* Render Settings Component */}
         {activePage === 'settings' && <Settings />}
       </div>

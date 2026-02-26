@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Calendar, Clock, MapPin, Users, ChevronDown, ChevronUp, FileSpreadsheet, X, Eye, ClipboardCheck, Download 
+import {
+  Calendar, Clock, MapPin, Users, ChevronDown, ChevronUp, FileSpreadsheet, X, Eye, ClipboardCheck, Download, Check, Minus, Search, Filter
 } from 'lucide-react';
 import { subscribeToAllAllocations } from '../utils/db';
 import * as XLSX from 'xlsx';
@@ -10,12 +10,17 @@ const AttendanceControl = () => {
   const [groupedDuties, setGroupedDuties] = useState({});
   const [expandedDates, setExpandedDates] = useState({});
   const [selectedDutyId, setSelectedDutyId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilters, setActiveFilters] = useState({
+    room: true, dept: true, year: true, rollNo: true, faculty: true, date: true, timing: true
+  });
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = subscribeToAllAllocations((data) => {
       const sortedData = [...data].sort((a, b) => new Date(b.date) - new Date(a.date));
-      
+
       const groups = sortedData.reduce((acc, duty) => {
         if (!acc[duty.date]) acc[duty.date] = [];
         acc[duty.date].push(duty);
@@ -25,7 +30,7 @@ const AttendanceControl = () => {
       setAllDuties(sortedData);
       setGroupedDuties(groups);
       setLoading(false);
-      
+
       const dates = Object.keys(groups);
       if (dates.length > 0 && Object.keys(expandedDates).length === 0) {
         setExpandedDates({ [dates[0]]: true });
@@ -34,6 +39,30 @@ const AttendanceControl = () => {
 
     return () => unsubscribe();
   }, [expandedDates]);
+
+  const getFilteredDuties = () => {
+    let filtered = allDuties;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = allDuties.filter(duty => {
+        const dDept = activeFilters.dept && duty.department?.toLowerCase().includes(q);
+        const dRoom = activeFilters.room && duty.room?.toString().toLowerCase().includes(q);
+        const dYear = activeFilters.year && getYearFromExcel(duty).toLowerCase().includes(q);
+        const dFaculty = activeFilters.faculty && duty.facultyName?.toLowerCase().includes(q);
+        const dDate = activeFilters.date && duty.date?.toLowerCase().includes(q);
+        const dTime = activeFilters.timing && ((duty.startTime?.toLowerCase().includes(q)) || (duty.endTime?.toLowerCase().includes(q)));
+        const dRoll = activeFilters.rollNo && duty.rollRange?.toLowerCase().includes(q);
+
+        return dDept || dRoom || dYear || dFaculty || dDate || dTime || dRoll;
+      });
+    }
+
+    return filtered.reduce((acc, duty) => {
+      if (!acc[duty.date]) acc[duty.date] = [];
+      acc[duty.date].push(duty);
+      return acc;
+    }, {});
+  };
 
   // --- HELPER FUNCTIONS FOR FETCHING EXCEL DATA ---
   const getYearFromExcel = (duty) => {
@@ -54,28 +83,54 @@ const AttendanceControl = () => {
 
   const downloadExcel = (duty) => {
     const fileName = `Attendance_Room_${duty.room}_${duty.date}.xlsx`;
-    
-    const worksheetData = duty.students?.map((stu) => {
-      const roll = stu['ROLL NO'] || stu.roll;
-      return {
-        'Roll No': roll,
-        'Student Name': stu['NAME'] || stu.name,
-        'Status': duty.attendanceData ? (duty.attendanceData[roll] || 'Pending') : 'Pending'
-      };
-    }) || [];
 
-    const pCount = duty.attendanceSummary?.present || 0;
-    const aCount = duty.attendanceSummary?.absent || 0;
-    
-    worksheetData.push({
-      'Roll No': 'Total',
-      'Student Name': '',
-      'Status': `${pCount} Present / ${aCount} Absent`
-    });
+    const createSheetData = (studentsList) => {
+      const data = studentsList.map((stu) => {
+        const roll = stu['ROLL NO'] || stu.roll;
+        return {
+          'Roll No': roll,
+          'Student Name': stu['NAME'] || stu.name,
+          'Status': duty.attendanceData ? (duty.attendanceData[roll] || 'Pending') : 'Pending',
+          'H/PC': duty.hpcData && duty.hpcData[roll] ? 'Yes' : '',
+          'CC': duty.ccData && duty.ccData[roll] ? 'Yes' : ''
+        };
+      }) || [];
 
-    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+      const pCount = studentsList.filter(s => {
+        const roll = s['ROLL NO'] || s.roll;
+        return duty.attendanceData && duty.attendanceData[roll] === 'Present';
+      }).length;
+
+      const aCount = studentsList.filter(s => {
+        const roll = s['ROLL NO'] || s.roll;
+        return duty.attendanceData && duty.attendanceData[roll] === 'Absent';
+      }).length;
+
+      data.push({ 'Roll No': 'Total', 'Student Name': '', 'Status': `${pCount} Present / ${aCount} Absent`, 'H/PC': '', 'CC': '' });
+      return data;
+    };
+
+    const normalStudents = duty.students?.filter(s => !s.isBuffer) || [];
+    const bufferStudents = duty.students?.filter(s => s.isBuffer) || [];
+
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance");
+
+    if (normalStudents.length > 0) {
+      const normalSheet = XLSX.utils.json_to_sheet(createSheetData(normalStudents));
+      XLSX.utils.book_append_sheet(workbook, normalSheet, "Normal Students");
+    }
+
+    if (bufferStudents.length > 0) {
+      const bufferSheet = XLSX.utils.json_to_sheet(createSheetData(bufferStudents));
+      XLSX.utils.book_append_sheet(workbook, bufferSheet, "Buffer Students");
+    }
+
+    // Fallback if empty
+    if (normalStudents.length === 0 && bufferStudents.length === 0) {
+      const emptySheet = XLSX.utils.json_to_sheet([{ Message: "No students" }]);
+      XLSX.utils.book_append_sheet(workbook, emptySheet, "Attendance");
+    }
+
     XLSX.writeFile(workbook, fileName);
   };
 
@@ -85,26 +140,69 @@ const AttendanceControl = () => {
 
   const activeDutyForModal = allDuties.find(d => d.id === selectedDutyId);
 
+  const currentGroupedDuties = getFilteredDuties();
+
   if (loading) return <div style={{ padding: '60px', textAlign: 'center' }}>Loading Attendance Data...</div>;
 
   return (
     <div style={{ padding: '40px', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
-      <div style={{ marginBottom: '30px' }}>
-        <h2 style={{ fontSize: '28px', fontWeight: '800', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div style={{ backgroundColor: '#4f46e5', padding: '10px', borderRadius: '12px', color: 'white' }}>
-            <ClipboardCheck size={28} />
+      <div style={{ marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h2 style={{ fontSize: '28px', fontWeight: '800', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <div style={{ backgroundColor: '#4f46e5', padding: '10px', borderRadius: '12px', color: 'white' }}>
+              <ClipboardCheck size={28} />
+            </div>
+            Attendance Control
+          </h2>
+          <p style={{ color: '#64748b', marginTop: '5px' }}>Monitor live attendance submissions from faculty duties</p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', background: 'white', border: '1px solid #d1d5db', borderRadius: '8px', padding: '10px 15px', width: '300px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <Search size={18} color="#9ca3af" style={{ marginRight: '8px' }} />
+            <input
+              type="text"
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ border: 'none', outline: 'none', width: '100%', fontSize: '14px' }}
+            />
           </div>
-          Attendance Control
-        </h2>
-        <p style={{ color: '#64748b', marginTop: '5px' }}>Monitor live attendance submissions from faculty duties</p>
+
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowFilterMenu(!showFilterMenu)} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'white', border: '1px solid #d1d5db', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer', color: '#4b5563', fontWeight: '600', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+              <Filter size={18} /> Filters
+            </button>
+            {showFilterMenu && (
+              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '15px', width: '180px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 10 }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: '#6b7280', marginBottom: '10px', letterSpacing: '0.5px' }}>SEARCH BY</div>
+                {Object.keys(activeFilters).map(key => (
+                  <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', marginBottom: '8px', cursor: 'pointer', color: '#374151' }}>
+                    <input
+                      type="checkbox"
+                      checked={activeFilters[key]}
+                      onChange={() => setActiveFilters({ ...activeFilters, [key]: !activeFilters[key] })}
+                      style={{ accentColor: '#4f46e5', width: '16px', height: '16px', cursor: 'pointer' }}
+                    />
+                    <span style={{ textTransform: 'capitalize' }}>{key === 'rollNo' ? 'Roll No' : key}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {Object.entries(groupedDuties).map(([date, rooms]) => (
+      {Object.entries(currentGroupedDuties).length === 0 && (
+        <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No matching allocations found.</div>
+      )}
+
+      {Object.entries(currentGroupedDuties).map(([date, rooms]) => (
         <div key={date} style={{ marginBottom: '20px' }}>
-          <div 
+          <div
             onClick={() => toggleDate(date)}
-            style={{ 
-              backgroundColor: 'white', padding: '15px 25px', borderRadius: '15px', 
+            style={{
+              backgroundColor: 'white', padding: '15px 25px', borderRadius: '15px',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               cursor: 'pointer', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
             }}
@@ -119,17 +217,17 @@ const AttendanceControl = () => {
           </div>
 
           {expandedDates[date] && (
-            <div style={{ 
-              display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', 
-              gap: '20px', marginTop: '15px', padding: '0 10px' 
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+              gap: '20px', marginTop: '15px', padding: '0 10px'
             }}>
               {rooms.map((room) => (
-                <RoomAttendanceCard 
-                  key={room.id} 
-                  data={room} 
+                <RoomAttendanceCard
+                  key={room.id}
+                  data={room}
                   year={getYearFromExcel(room)}
                   division={getDivisionFromExcel(room)}
-                  onViewAttendance={() => setSelectedDutyId(room.id)} 
+                  onViewAttendance={() => setSelectedDutyId(room.id)}
                   onDownload={() => downloadExcel(room)}
                 />
               ))}
@@ -139,11 +237,11 @@ const AttendanceControl = () => {
       ))}
 
       {activeDutyForModal && (
-        <AttendanceSheetModal 
-          duty={activeDutyForModal} 
+        <AttendanceSheetModal
+          duty={activeDutyForModal}
           year={getYearFromExcel(activeDutyForModal)}
           division={getDivisionFromExcel(activeDutyForModal)}
-          onClose={() => setSelectedDutyId(null)} 
+          onClose={() => setSelectedDutyId(null)}
         />
       )}
     </div>
@@ -155,7 +253,12 @@ const RoomAttendanceCard = ({ data, year, division, onViewAttendance, onDownload
     <div style={{ backgroundColor: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
       <div style={{ padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 'bold' }}>Room {data.room}</h3>
+          <h3 style={{ fontSize: '18px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            Room {data.room}
+            {data.students?.some(s => s.isBuffer) && (
+              <span style={{ fontSize: '10px', background: '#f59e0b', color: 'white', padding: '2px 8px', borderRadius: '12px' }}>BUFFER</span>
+            )}
+          </h3>
           <div style={{ textAlign: 'right' }}>
             <p style={{ fontSize: '9px', color: '#94a3b8', fontWeight: '800' }}>FACULTY</p>
             <p style={{ fontSize: '12px', fontWeight: '700', color: '#4f46e5' }}>{data.facultyName || 'Unassigned'}</p>
@@ -163,13 +266,13 @@ const RoomAttendanceCard = ({ data, year, division, onViewAttendance, onDownload
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
-           <p style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
-             {year} | {data.department} | {division}
-           </p>
-           <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: '8px', color: '#94a3b8', fontWeight: '800' }}>ROLL RANGE</p>
-              <p style={{ fontSize: '11px', fontWeight: '700', color: '#1e293b' }}>{data.rollRange || 'N/A'}</p>
-           </div>
+          <p style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
+            {year} | {data.department} | {division}
+          </p>
+          <div style={{ textAlign: 'right' }}>
+            <p style={{ fontSize: '8px', color: '#94a3b8', fontWeight: '800' }}>ROLL RANGE</p>
+            <p style={{ fontSize: '11px', fontWeight: '700', color: '#1e293b' }}>{data.rollRange || 'N/A'}</p>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', margin: '10px 0' }}>
@@ -177,7 +280,7 @@ const RoomAttendanceCard = ({ data, year, division, onViewAttendance, onDownload
           <span style={{ fontSize: '12px', color: '#1e293b' }}>{data.startTime} - {data.endTime}</span>
         </div>
 
-        <div style={{ 
+        <div style={{
           padding: '12px', borderRadius: '12px', textAlign: 'center',
           backgroundColor: data.attendanceSummary ? '#f0fdf4' : '#fff7ed',
           border: `1px solid ${data.attendanceSummary ? '#bcf0da' : '#ffedd5'}`,
@@ -193,12 +296,12 @@ const RoomAttendanceCard = ({ data, year, division, onViewAttendance, onDownload
         </div>
 
         <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={onViewAttendance} style={{ flex: 1, padding: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', color: '#4f46e5', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px' }}>
-              <Eye size={16} /> View
-            </button>
-            <button onClick={onDownload} style={{ flex: 1, padding: '10px', background: '#4f46e5', border: 'none', borderRadius: '10px', color: 'white', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px' }}>
-              <Download size={16} /> Download
-            </button>
+          <button onClick={onViewAttendance} style={{ flex: 1, padding: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', color: '#4f46e5', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px' }}>
+            <Eye size={16} /> View
+          </button>
+          <button onClick={onDownload} style={{ flex: 1, padding: '10px', background: '#4f46e5', border: 'none', borderRadius: '10px', color: 'white', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px' }}>
+            <Download size={16} /> Download
+          </button>
         </div>
       </div>
     </div>
@@ -212,7 +315,7 @@ const AttendanceSheetModal = ({ duty, year, division, onClose }) => (
         <div>
           <h3 style={{ fontSize: '20px', fontWeight: 'bold' }}>Attendance Sheet: Room {duty.room}</h3>
           <p style={{ fontSize: '14px', color: '#64748b' }}>
-            {year} | {duty.department} | {division} <br/>
+            {year} | {duty.department} | {division} <br />
             Faculty: {duty.facultyName} | {duty.date}
           </p>
         </div>
@@ -225,20 +328,34 @@ const AttendanceSheetModal = ({ duty, year, division, onClose }) => (
             <th style={{ padding: '12px' }}>Roll No</th>
             <th style={{ padding: '12px' }}>Student Name</th>
             <th style={{ padding: '12px', textAlign: 'center' }}>Status</th>
+            <th style={{ padding: '12px', textAlign: 'center', color: '#0ea5e9' }}>H/PC</th>
+            <th style={{ padding: '12px', textAlign: 'center', color: '#f59e0b' }}>CC</th>
           </tr>
         </thead>
         <tbody>
           {duty.students?.map((stu, index) => {
             const roll = stu['ROLL NO'] || stu.roll;
-            const status = duty.attendanceData ? duty.attendanceData[roll] : 'Pending'; 
+            const status = duty.attendanceData ? duty.attendanceData[roll] : 'Pending';
+            const isHpc = duty.hpcData && duty.hpcData[roll];
+            const isCc = duty.ccData && duty.ccData[roll];
+
             return (
               <tr key={index} style={{ borderBottom: '1px solid #f1f5f9' }}>
                 <td style={{ padding: '12px', fontWeight: 'bold' }}>{roll}</td>
-                <td style={{ padding: '12px' }}>{stu['NAME'] || stu.name}</td>
+                <td style={{ padding: '12px' }}>
+                  {stu['NAME'] || stu.name}
+                  {stu.isBuffer && <span style={{ marginLeft: '8px', background: '#f59e0b', color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>BUFFER</span>}
+                </td>
                 <td style={{ padding: '12px', textAlign: 'center' }}>
                   <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', background: status === 'Present' ? '#dcfce7' : status === 'Absent' ? '#fee2e2' : '#f1f5f9', color: status === 'Present' ? '#166534' : status === 'Absent' ? '#991b1b' : '#64748b' }}>
                     {status}
                   </span>
+                </td>
+                <td style={{ padding: '12px', textAlign: 'center' }}>
+                  {isHpc ? <Check size={18} color="#0ea5e9" style={{ margin: '0 auto' }} /> : <Minus size={18} color="#cbd5e1" style={{ margin: '0 auto' }} />}
+                </td>
+                <td style={{ padding: '12px', textAlign: 'center' }}>
+                  {isCc ? <Check size={18} color="#f59e0b" style={{ margin: '0 auto' }} /> : <Minus size={18} color="#cbd5e1" style={{ margin: '0 auto' }} />}
                 </td>
               </tr>
             );
