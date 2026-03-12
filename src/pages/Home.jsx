@@ -86,19 +86,19 @@ const Home = () => {
         <img
           src={BannerImg}
           alt="ZSCT's Thakur Shyamnarayan Degree College Banner"
-          style={{ width: '90%', maxWidth: '1200px', maxHeight: '250px', objectFit: 'contain', display: 'block' }}
+          style={{ width: '90%', maxWidth: '1200px', maxHeight: '150px', objectFit: 'contain', display: 'block' }}
         />
       </header>
 
       {/* PHOTO SCROLLING MARQUEE (Images only) */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap', backgroundColor: '#f1f5f9', padding: '40px 0' }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap', backgroundColor: '#f1f5f9', padding: '20px 0' }}>
         <div style={{ display: 'inline-block', animation: 'scrollLeft 40s linear infinite' }}>
           {[Campus1, Campus2, Campus3, Campus4, Campus5, Campus6].map((imgSrc, idx) => (
-            <img key={idx} src={imgSrc} alt={`Campus ${idx + 1}`} style={{ width: '600px', height: '400px', objectFit: 'cover', borderRadius: '16px', margin: '0 20px', display: 'inline-block', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+            <img key={idx} src={imgSrc} alt={`Campus ${idx + 1}`} style={{ width: '500px', height: '320px', objectFit: 'cover', borderRadius: '16px', margin: '0 20px', display: 'inline-block', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
           ))}
           {/* Duplicated for seamless scrolling */}
           {[Campus1, Campus2, Campus3, Campus4, Campus5, Campus6].map((imgSrc, idx) => (
-            <img key={`dup-${idx}`} src={imgSrc} alt={`Campus ${idx + 1}`} style={{ width: '600px', height: '400px', objectFit: 'cover', borderRadius: '16px', margin: '0 20px', display: 'inline-block', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+            <img key={`dup-${idx}`} src={imgSrc} alt={`Campus ${idx + 1}`} style={{ width: '500px', height: '320px', objectFit: 'cover', borderRadius: '16px', margin: '0 20px', display: 'inline-block', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
           ))}
         </div>
       </div>
